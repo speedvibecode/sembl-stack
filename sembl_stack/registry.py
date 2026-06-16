@@ -11,6 +11,7 @@ from .adapters.execute_opencode import OpenCodeExecutor
 from .adapters.sandbox_worktree import WorktreeSandbox
 from .adapters.spec_sembl import SemblSpecAdapter
 from .adapters.verify_sembl import SemblVerifyAdapter
+from .contextgraph import SymgraphGraph
 
 # layer -> { adapter name -> factory(transport, mcp_server, opts) }
 # opts is the per-layer `options:` block from sembl.stack.yaml (adapter-specific knobs
@@ -30,6 +31,10 @@ _REGISTRY: dict[str, dict[str, object]] = {
     },
     "verify": {
         "sembl": lambda t, s, o: SemblVerifyAdapter(transport=t, mcp_server=s),
+    },
+    "context": {                                          # L1 semantic graph (optional)
+        "symgraph": lambda t, s, o: SymgraphGraph(timeout=o.get("timeout", 300)),
+        "none": lambda t, s, o: None,
     },
 }
 

@@ -105,12 +105,57 @@ main.command(name="run")(_loop_cmd)   # alias
 @click.option("--spec", default=None, help="Spec Kit tasks.md / feature dir.")
 @click.option("--text", default=None, help="Task text (if no --task file).")
 @click.option("--config", "config_path", default="sembl.stack.yaml")
+@click.option("--expand/--no-expand", default=False,
+              help="Widen editable_paths along the L1 context graph's coupling closure "
+                   "(EXP-05: recovers legitimate sibling files; hops=1, closure-capped).")
+@click.option("--hops", default=1, show_default=True, help="Coupling hops when --expand.")
 @click.option("--out", default=None, help="Write the Bounds artifact here (else stdout).")
-def bounds(task_file, repo, spec, text, config_path, out):
+def bounds(task_file, repo, spec, text, config_path, expand, hops, out):
     """L2: Task -> Bounds. Derive the scope contract from a spec."""
     task = _load_task(task_file, repo, spec, text)
     cfg = load(config_path if Path(config_path).is_file() else None)
-    _emit(cfg.spec.plan(task), out)
+    bnds = cfg.spec.plan(task)
+    if expand:
+        bnds = _expand_bounds(bnds, task.repo, cfg, hops)
+    _emit(bnds, out)
+
+
+def _expand_bounds(bnds, repo, cfg, hops):
+    """Grow bounds.editable_paths via the configured context graph (no-op if unavailable)."""
+    from .contextgraph import expand_bounds as _eb
+    g = cfg.context
+    if g is None or not getattr(g, "available", lambda: False)():
+        click.echo("(context graph unavailable — bounds left as-is)", err=True)
+        return bnds
+    opts = (cfg.raw.get("options", {}) or {}).get("context", {}) or {}
+    g.index(repo)
+    fg = g.file_graph(repo)
+    before = list(bnds.editable_paths)
+    bnds.editable_paths = _eb(before, fg, hops=hops,
+                              min_strength=opts.get("min_strength", 0),
+                              max_fraction=opts.get("max_fraction", 0.4))
+    click.echo(f"(context: {len(fg.nodes)} files; editable_paths "
+               f"{len(before)} -> {len(bnds.editable_paths)})", err=True)
+    return bnds
+
+
+@main.command()
+@click.option("--repo", default=".")
+@click.option("--config", "config_path", default="sembl.stack.yaml")
+def context(repo, config_path):
+    """L1: index the repo with the context graph and show its size + densest files."""
+    cfg = load(config_path if Path(config_path).is_file() else None)
+    g = cfg.context
+    if g is None or not getattr(g, "available", lambda: False)():
+        raise click.UsageError("no context adapter configured/available "
+                               "(set layers.context: symgraph, install symgraph)")
+    repo = str(Path(repo).resolve())
+    g.index(repo)
+    fg = g.file_graph(repo)
+    click.echo(f"files: {len(fg.nodes)}   edges: {len(fg.edges)}")
+    top = sorted(fg.edges, key=lambda e: e.get("strength", 0), reverse=True)[:8]
+    for e in top:
+        click.echo(f"  {e['from']} -> {e['to']}  (strength {e.get('strength','?')})")
 
 
 @main.command()
@@ -173,7 +218,7 @@ def verify(change_path, diff_path, report_path, bounds_path, strict, config_path
 @main.command()
 def layers():
     """List the available adapters per layer."""
-    for layer in ("spec", "execute", "sandbox", "verify"):
+    for layer in ("spec", "execute", "sandbox", "verify", "context"):
         click.echo(f"{layer:9}: {', '.join(registry.names(layer))}")
 
 
