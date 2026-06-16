@@ -1,0 +1,20 @@
+# The swappable-layer config. One line per layer — change the value, not the code.
+layers:
+  spec: sembl          # L2 bounds engine (ours). swap: kiro
+  execute: mock        # L3 executor.  swap: opencode | aider | claude-code
+  sandbox: worktree    # L4 sandbox.    swap: e2b | daytona
+  verify: sembl        # L5 gate (ours).
+
+# How each layer is reached. "mcp" dogfoods Sembl's MCP server; "cli" is the
+# zero-config fallback that just shells the tool.
+transport:
+  spec: mcp
+  verify: mcp
+  mcp_server: ["uvx", "--from", "sembl[mcp]", "sembl-mcp"]   # or: ["sembl-mcp"]
+
+loop:
+  max_attempts: 3      # retries on BLOCK, feeding the gate's reasons back to L3
+  strict: true         # out-of-scope edits BLOCK (hard gate)
+
+tracing:
+  langfuse: false      # set true + LANGFUSE_* env to light up tracing

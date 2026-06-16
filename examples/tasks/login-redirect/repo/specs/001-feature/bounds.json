@@ -1,0 +1,5 @@
+{
+  "editable_paths": ["src/app/"],
+  "forbidden_areas": ["infra/"],
+  "churn_budget": { "max_files": 4, "max_lines": 100 }
+}

@@ -1,0 +1,8 @@
+# Example target repos are git-inited locally for demos; don't nest their .git
+examples/**/repo/.git/
+__pycache__/
+*.egg-info/
+.pytest_cache/
+build/
+dist/
+.venv/

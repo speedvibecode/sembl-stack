@@ -1,0 +1,4 @@
+# A task for the short loop. Paths are resolved relative to this file.
+text: "Add a value to the app module without touching infra."
+repo: "./repo"
+spec_path: "./repo/specs/001-feature"
