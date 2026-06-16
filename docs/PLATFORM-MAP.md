@@ -121,7 +121,9 @@ output we can gate — the executor bar). [LOCKED findings]
 ## 8. Honesty guardrails (carried from the first product)
 
 - We sell **process correctness**, never "the model writes better code" (that causal
-  claim is falsified — do not rebuild or re-test it). [LOCKED]
+  claim is falsified — do not rebuild or re-test it). [LOCKED] Quality signals may be
+  *measured* (O3) but only as gate-caught regressions + a no-harm baseline — never as the
+  success criterion.
 - "Reaches production correctly" = the change does what the spec declared, stays in
   bounds, passes the merge gate, deploys, and **passes a deterministic post-deploy gate**
   (health/smoke + error-rate thresholds) with a rollback trigger — all on an auditable
@@ -131,8 +133,9 @@ output we can gate — the executor bar). [LOCKED findings]
 ## 9. Build phases (unchanged)
 
 1. **Phase 1** — prove the Spine to **merge-ready** on real OpenCode execution against a
-   real corpus, measured by *gate-prevents-bad-merges* (O3). Deploy stubbed. Brain only
-   as L2/L3 need it. TUI dashboard (O6) prototyped here.
+   real corpus, measured per O3 (process correctness primary; quality only as gate-caught
+   regressions + no-harm). Deploy stubbed; local-only (O5). Brain only as L2/L3 need it.
+   TUI dashboard (O6) prototyped here.
 2. **Phase 2** — more spine stages that earn it (repo-intel, real sandbox, live
    observability) + **L7 deploy + L8 post-deploy gate (the through-deploy ambition)** +
    layer-replacement protocol.
@@ -140,18 +143,13 @@ output we can gate — the executor bar). [LOCKED findings]
 
 ---
 
-## AMBIGUITY LEDGER
+## AMBIGUITY LEDGER — all resolved (owner call, 2026-06-16)
 
-### Resolved (owner call, 2026-06-16)
-| # | Decision |
+| # | Decision [LOCKED] |
 |---|---|
-| O1 | **[LOCKED]** Engine = headless library + optional `serve` daemon; CLI/TUI/web are thin clients. |
-| O2 | **[LOCKED]** Spine runs **through deploy** — own the deploy stage + post-deploy gate (rollback), delegate the deploy mechanism. No deploy infra owned. |
-| O6 | **[LOCKED]** First visual surface = in-terminal **TUI** run dashboard (Phase 1). |
-
-### Still open (need owner call)
-| # | Ambiguity | Recommended lock |
-|---|---|---|
-| O3 | Success metric for WITH/WITHOUT test | Out-of-scope/forbidden/fabricated changes caught or corrected before merge + iterations-to-green; NOT code quality. |
-| O4 | Naming/brand: `sembl` (gate) vs `sembl-stack` (platform) | Keep `sembl-stack` as working name; defer public brand. |
-| O5 | **ELEVATED by O2** — trust/credential/security model. Through-deploy means the engine now touches **deploy credentials + production**, so this is no longer deferrable. | v1 personal/local: inherit user env + sandbox executors + a `serve` daemon that holds creds only in memory; never the executor's context. A real secret/permission model is required before any shared/hosted use. **Genuinely open — biggest unresolved risk.** |
+| O1 | Engine = headless library + optional `serve` daemon; CLI/TUI/web are thin clients. |
+| O2 | Spine runs **through deploy** — own the deploy stage + post-deploy gate (rollback), delegate the deploy mechanism. No deploy infra owned. |
+| O3 | Success metric: **primary** = process correctness (bad/out-of-scope/forbidden/fabricated caught or corrected before merge, WITH vs WITHOUT, + iterations-to-green); **secondary** = quality signals *only* as gate-caught lint/test/security regressions + a no-harm baseline. **Trap-guard: "agent writes better code" is NEVER the success criterion** (that claim is falsified). |
+| O4 | Keep `sembl-stack` as working name; defer public brand. |
+| O5 | Phase 1 (merge-ready) is local-only: inherit user env, sandbox executors, no deploy creds. A real secret + permission model is a **hard prerequisite for Phase 2 (deploy)** and any shared/hosted use. |
+| O6 | First visual surface = in-terminal **TUI** run dashboard (Phase 1). |
