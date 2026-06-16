@@ -49,7 +49,7 @@ class SemblVerifyAdapter:
             bf = Path(tmp) / "bounds.json"
             rf = Path(tmp) / "report.json"
             pf = Path(tmp) / "change.patch"
-            bf.write_text(json.dumps(bounds.to_json()), encoding="utf-8")
+            bf.write_text(json.dumps(bounds.to_contract()), encoding="utf-8")
             rf.write_text(json.dumps(result.report), encoding="utf-8")
             pf.write_text(result.diff, encoding="utf-8")
             cmd = ["sembl", "verify", "--diff", str(pf),

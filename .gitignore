@@ -1,5 +1,8 @@
 # Example target repos are git-inited locally for demos; don't nest their .git
 examples/**/repo/.git/
+# Run artifacts (the run store) are local-only
+.sembl/
+examples/**/repo/.sembl/
 __pycache__/
 *.egg-info/
 .pytest_cache/

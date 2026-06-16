@@ -6,6 +6,27 @@
 
 ---
 
+## North Star — recursive PROCESS self-improvement [LOCKED]
+
+The end state is a process that **improves itself** — explicitly **NOT** traditional AI
+self-improvement (a model getting smarter). It is a *process* that gets better **because
+of the tools of the process itself**:
+
+- **Signal:** the deterministic artifacts (runs, verdicts, traces, cost) are a clean,
+  measurable record of how well the process performed — per executor, per wiring, per
+  task type.
+- **Optimizer:** the layer-replacement protocol (`signal → shadow → promote`) is the
+  improvement loop; the swappable **catalog is the search space**.
+- **What improves:** *selection, routing, and orchestration* — which tool, in which
+  wiring, for which work — and it absorbs newly-released better tools automatically.
+- **What does NOT change:** raw capability. Intelligence stays **exogenous** (in the
+  swappable tools); we never claim the models get smarter.
+
+Why it's non-circular (and unlike the thing we reject): the loop is grounded in a
+**deterministic metric**, not a model grading a model. Bounded by the tool ecosystem
+(not unbounded RSI). And the factory can build/improve *itself* through its own gated
+process (bootstrapping). See `docs/process-self-improvement.md` for the full theory.
+
 ## 0. The one inversion everything rests on
 
 **This is not a pipeline. It is a set of composable _stages_ over a typed _artifact

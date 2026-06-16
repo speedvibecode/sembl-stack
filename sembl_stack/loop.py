@@ -14,7 +14,9 @@ from dataclasses import dataclass, field
 from typing import Any, TypedDict
 
 from .adapters.base import Task, Verdict
+from .artifacts import Trace
 from .config import StackConfig
+from .store import RunStore
 from .tracing import get_tracer
 
 
@@ -36,12 +38,14 @@ class LoopResult:
     history: list = field(default_factory=list)   # [(attempt, status), ...]
     workdir: str | None = None
     engine: str = "fallback"
+    run_id: str | None = None
 
 
-def _nodes(cfg: StackConfig, task: Task, tracer):
+def _nodes(cfg: StackConfig, task: Task, tracer, run):
     def plan(state: dict) -> dict:
         with tracer.span("L2.plan"):
             bounds = cfg.spec.plan(task)
+        run.put(bounds)                            # persist Bounds artifact
         return {"bounds": bounds}
 
     def execute(state: dict) -> dict:
@@ -53,12 +57,14 @@ def _nodes(cfg: StackConfig, task: Task, tracer):
             sandbox = cfg.sandbox.open(task.repo)
             result = cfg.execute.run(task, state["bounds"], sandbox,
                                      state.get("feedback"))
+        run.put(result, name=f"change-{n}")        # persist Change per attempt
         return {"sandbox": sandbox, "result": result}
 
     def verify(state: dict) -> dict:
         with tracer.span("L5.verify"):
             verdict = cfg.verify.verify(state["bounds"], state["result"], cfg.strict)
         attempt = state["attempt"] + 1
+        run.put(verdict, name=f"verdict-{attempt}")
         return {
             "verdict": verdict,
             "attempt": attempt,
@@ -76,7 +82,8 @@ def _nodes(cfg: StackConfig, task: Task, tracer):
 
 def run(cfg: StackConfig, task: Task) -> LoopResult:
     tracer = get_tracer(cfg.langfuse)
-    plan, execute, verify, route = _nodes(cfg, task, tracer)
+    run_rec = RunStore(task.repo).new_run(task)
+    plan, execute, verify, route = _nodes(cfg, task, tracer, run_rec)
     init = {"attempt": 0, "feedback": None, "history": []}
 
     try:
@@ -90,9 +97,17 @@ def run(cfg: StackConfig, task: Task) -> LoopResult:
         sandbox.close()
     tracer.flush()
 
+    # persist the final verdict, a trace, and the run status
+    verdict = final["verdict"]
+    run_rec.put(verdict)
+    run_rec.put(Trace(steps=[{"attempt": a, "status": s} for a, s in final["history"]]))
+    run_rec.set_status("PASS" if verdict.status in ("PASS", "WARN") else "BLOCK",
+                       attempts=final["attempt"], engine=engine)
+
     return LoopResult(
-        verdict=final["verdict"], attempts=final["attempt"],
+        verdict=verdict, attempts=final["attempt"],
         history=final["history"], workdir=workdir, engine=engine,
+        run_id=run_rec.id,
     )
 
 

@@ -56,6 +56,8 @@ def run(task_file: str, config_path: str):
                    "yellow" if v.status == "WARN" else "red")
     for r in v.reasons:
         click.echo(f"  - {r}")
+    if result.run_id:
+        click.echo(f"\nrun: {result.run_id}  (.sembl/runs/{result.run_id}/)")
     raise SystemExit(0 if v.status in ("PASS", "WARN") else 1)
 
 
