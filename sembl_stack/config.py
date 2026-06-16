@@ -45,12 +45,17 @@ def load(path: str | None) -> StackConfig:
     layers = cfg["layers"]
     tr = cfg["transport"]
     server = tr.get("mcp_server", DEFAULTS["transport"]["mcp_server"])
+    opts = cfg.get("options", {})   # per-layer adapter knobs (e.g. execute.model)
 
     return StackConfig(
-        spec=registry.build("spec", layers["spec"], tr.get("spec", "mcp"), server),
-        execute=registry.build("execute", layers["execute"], "cli", server),
-        sandbox=registry.build("sandbox", layers["sandbox"], "cli", server),
-        verify=registry.build("verify", layers["verify"], tr.get("verify", "mcp"), server),
+        spec=registry.build("spec", layers["spec"], tr.get("spec", "mcp"), server,
+                            opts.get("spec")),
+        execute=registry.build("execute", layers["execute"], "cli", server,
+                               opts.get("execute")),
+        sandbox=registry.build("sandbox", layers["sandbox"], "cli", server,
+                               opts.get("sandbox")),
+        verify=registry.build("verify", layers["verify"], tr.get("verify", "mcp"), server,
+                              opts.get("verify")),
         max_attempts=cfg["loop"]["max_attempts"],
         strict=cfg["loop"]["strict"],
         langfuse=cfg["tracing"]["langfuse"],

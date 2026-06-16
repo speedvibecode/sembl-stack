@@ -12,32 +12,37 @@ from .adapters.sandbox_worktree import WorktreeSandbox
 from .adapters.spec_sembl import SemblSpecAdapter
 from .adapters.verify_sembl import SemblVerifyAdapter
 
-# layer -> { adapter name -> factory(transport, mcp_server) }
+# layer -> { adapter name -> factory(transport, mcp_server, opts) }
+# opts is the per-layer `options:` block from sembl.stack.yaml (adapter-specific knobs
+# like which model to drive) — keeps tuning a config change, not a code change.
 _REGISTRY: dict[str, dict[str, object]] = {
     "spec": {
-        "sembl": lambda t, s: SemblSpecAdapter(transport=t, mcp_server=s),
+        "sembl": lambda t, s, o: SemblSpecAdapter(transport=t, mcp_server=s),
     },
     "execute": {
-        "mock": lambda t, s: MockExecutor(),
-        "opencode": lambda t, s: OpenCodeExecutor(),
+        "mock": lambda t, s, o: MockExecutor(),
+        "opencode": lambda t, s, o: OpenCodeExecutor(
+            model=o.get("model"), timeout=o.get("timeout", 900)),
     },
     "sandbox": {
-        "worktree": lambda t, s: WorktreeSandbox(),
+        "worktree": lambda t, s, o: WorktreeSandbox(),   # back-compat name
+        "clone": lambda t, s, o: WorktreeSandbox(),       # disposable local clone
     },
     "verify": {
-        "sembl": lambda t, s: SemblVerifyAdapter(transport=t, mcp_server=s),
+        "sembl": lambda t, s, o: SemblVerifyAdapter(transport=t, mcp_server=s),
     },
 }
 
 
-def build(layer: str, name: str, transport: str, mcp_server: list[str]):
+def build(layer: str, name: str, transport: str, mcp_server: list[str],
+          opts: dict | None = None):
     try:
         factory = _REGISTRY[layer][name]
     except KeyError:
         avail = ", ".join(_REGISTRY.get(layer, {})) or "(none)"
         raise SystemExit(
             f"Unknown {layer} adapter '{name}'. Available: {avail}")
-    return factory(transport, mcp_server)
+    return factory(transport, mcp_server, opts or {})
 
 
 def names(layer: str) -> list[str]:
