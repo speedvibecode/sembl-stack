@@ -41,6 +41,12 @@ class LoopResult:
     run_id: str | None = None
 
 
+def _is_empty_change(change) -> bool:
+    """True when the executor produced no file changes (no `diff --git` headers)."""
+    diff = getattr(change, "diff", "") or ""
+    return not any(line.startswith("diff --git ") for line in diff.splitlines())
+
+
 def _maybe_expand(cfg: StackConfig, task: Task, bounds, tracer) -> None:
     """L1 context stage (in-loop): widen `bounds.editable_paths` along the coupling closure.
 
@@ -86,8 +92,20 @@ def _nodes(cfg: StackConfig, task: Task, tracer, run):
         return {"sandbox": sandbox, "result": result}
 
     def verify(state: dict) -> dict:
-        with tracer.span("L5.verify"):
-            verdict = cfg.verify.verify(state["bounds"], state["result"], cfg.strict)
+        change = state["result"]
+        if _is_empty_change(change):
+            # C1 hardening: a no-op execution (empty diff — e.g. the executor errored, hit a
+            # dead model, or wrote nothing) must NOT pass. The gate verifies a *change*; with
+            # no change there is nothing that satisfies the task, so block and tell the
+            # executor it produced nothing (actionable feedback on retry).
+            verdict = Verdict(
+                status="BLOCK",
+                reasons=["executor produced no changes (empty diff) — the task was not "
+                         "implemented; check the executor/model output"],
+                raw={"empty_diff": True, "report": getattr(change, "report", {})})
+        else:
+            with tracer.span("L5.verify"):
+                verdict = cfg.verify.verify(state["bounds"], change, cfg.strict)
         attempt = state["attempt"] + 1
         run.put(verdict, name=f"verdict-{attempt}")
         return {
