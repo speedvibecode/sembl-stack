@@ -41,7 +41,9 @@ class SemblSpecAdapter:
                     self.mcp_server, "bounds_from_spec",
                     {"tasks_path": str(Path(spec).resolve()), "repo_path": task.repo},
                 )
-                return self._from_payload(out)
+                bnds = self._from_payload(out)
+                if bnds.editable_paths:
+                    return bnds
             except Exception:
                 pass
         # 2) CLI fallback (the CLI prints a panel then the JSON — extract the JSON)
@@ -53,10 +55,17 @@ class SemblSpecAdapter:
                 )
                 payload = _extract_json(proc.stdout)
                 if payload is not None:
-                    return self._from_payload(payload)
+                    bnds = self._from_payload(payload)
+                    if bnds.editable_paths:
+                        return bnds
             except Exception:
                 pass
-        # 3) hand-written bounds.json beside the spec / task / repo
+        # 3) hand-written bounds.json beside the spec / task / repo. This is also the
+        #    deliberate fallback when derivation yields NO editable_paths: a greenfield
+        #    "create these files" spec names paths that don't exist in the repo yet, so the
+        #    repo-tree-validated extractor drops them — an empty contract a strict gate
+        #    would read as "everything is out of scope". An author-written bounds.json is
+        #    the precise seed for exactly that case.
         candidates = []
         if spec:
             candidates += [Path(spec) / "bounds.json", Path(spec).parent / "bounds.json"]

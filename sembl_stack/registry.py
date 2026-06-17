@@ -6,6 +6,7 @@ swappable with a one-line config change.
 """
 from __future__ import annotations
 
+from .adapters.execute_claude import ClaudeCodeExecutor
 from .adapters.execute_mock import MockExecutor
 from .adapters.execute_opencode import OpenCodeExecutor
 from .adapters.sandbox_worktree import WorktreeSandbox
@@ -23,6 +24,8 @@ _REGISTRY: dict[str, dict[str, object]] = {
     "execute": {
         "mock": lambda t, s, o: MockExecutor(),
         "opencode": lambda t, s, o: OpenCodeExecutor(
+            model=o.get("model"), timeout=o.get("timeout", 900)),
+        "claude": lambda t, s, o: ClaudeCodeExecutor(
             model=o.get("model"), timeout=o.get("timeout", 900)),
     },
     "sandbox": {

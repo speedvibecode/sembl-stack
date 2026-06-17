@@ -1,5 +1,7 @@
 # Example target repos are git-inited locally for demos; don't nest their .git
 examples/**/repo/.git/
+# Local-only tests (kept off the repo by request)
+tests/local/
 # Run artifacts (the run store) are local-only
 .sembl/
 examples/**/repo/.sembl/
