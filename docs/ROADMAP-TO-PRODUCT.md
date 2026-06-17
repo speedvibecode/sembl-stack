@@ -109,5 +109,20 @@ vacuum — recruited the moment the loop is runnable end-to-end by someone who i
 | S2 | Depth over breadth (2–3 adapters/layer, not 100) | **[LOCKED]** |
 | S3 | Winnable bar = O3 + usable end-to-end, not "beats every tool" | **[LOCKED]** |
 | S4 | Private beta woven into C (3–5 partners) before public launch | **[LOCKED]** |
-| S5 | Which 2nd executor for the swap demo (Aider vs fix OpenCode) | **[OPEN]** |
+| S5 | Which 2nd executor for the swap demo (Aider vs fix OpenCode) | **[RESOLVED]** — Aider, proven live via NIM llama-3.3-70b |
 | S6 | Corpus source (synthetic vs captured real PRs) | **[OPEN]** |
+
+## PROGRESS LOG
+
+- **2026-06-17 — C2 swap proof DONE.** Two real, hot-swappable executors behind one config
+  line: Claude Code (`execute: claude`) and Aider (`execute: aider`, OpenAI-compatible /
+  NVIDIA NIM). Both drive green loops; Aider proven live (NIM llama-3.3-70b → real code →
+  gate PASS).
+- **2026-06-17 — C1 (in progress).** First hardening item shipped: a no-op execution (empty
+  diff *or* an empty/contentless file from an errored/dead-model executor) now BLOCKs with
+  actionable feedback instead of false-passing. Surfaced live by a NIM 410 end-of-life model
+  and by MiniMax-M3 returning empty completions. Remaining C1: executor timeout/exit-code
+  surfacing, partial-change handling, cost+latency capture per run.
+- **Model note:** on this NIM key, `minimaxai/minimax-m3` returns empty completions to aider
+  (0 tokens, `choices=[]`) and `qwen2.5-coder-32b` is end-of-life (410). Use
+  `meta/llama-3.3-70b-instruct` (verified working) for live aider runs.

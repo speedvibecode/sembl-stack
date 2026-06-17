@@ -42,9 +42,23 @@ class LoopResult:
 
 
 def _is_empty_change(change) -> bool:
-    """True when the executor produced no file changes (no `diff --git` headers)."""
+    """True when the executor produced no substantive change.
+
+    Not just "no diff": an executor that errored or hit a dead model often *creates an
+    empty file*, which has a `diff --git` header but no content — a no-op in substance. So
+    the real signal is the absence of added/removed content (or a structural rename/delete/
+    copy). `+++`/`---` file markers are skipped; any other `+`/`-` line is real content.
+    """
     diff = getattr(change, "diff", "") or ""
-    return not any(line.startswith("diff --git ") for line in diff.splitlines())
+    for line in diff.splitlines():
+        s = line.rstrip()
+        if s.startswith(("+++", "---")):
+            continue
+        if s.startswith(("+", "-")):
+            return False                      # real content added or removed
+        if s.startswith(("rename ", "deleted file", "copy ")):
+            return False                      # structural change with no +/- body
+    return True
 
 
 def _maybe_expand(cfg: StackConfig, task: Task, bounds, tracer) -> None:
