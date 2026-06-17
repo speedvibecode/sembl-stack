@@ -41,11 +41,36 @@ class LoopResult:
     run_id: str | None = None
 
 
+def _maybe_expand(cfg: StackConfig, task: Task, bounds, tracer) -> None:
+    """L1 context stage (in-loop): widen `bounds.editable_paths` along the coupling closure.
+
+    Opt-in via `loop.expand_bounds`. This makes the running loop the fuller pipeline
+    (L1→L2→L3→L4→L5) instead of only the `bounds --expand` CLI. It is a no-op — and so leaves
+    the gate exactly as strict — when no context adapter is configured/available or the seed
+    has no indexed files. Mutates `bounds` in place (one hop, closure-capped; EXP-05).
+    """
+    if not (cfg.raw.get("loop", {}) or {}).get("expand_bounds"):
+        return
+    g = cfg.context
+    if g is None or not getattr(g, "available", lambda: False)():
+        return
+    from .contextgraph import expand_bounds as _eb
+
+    opts = (cfg.raw.get("options", {}) or {}).get("context", {}) or {}
+    with tracer.span("L1.context"):
+        g.index(task.repo)
+        fg = g.file_graph(task.repo)
+    bounds.editable_paths = _eb(
+        list(bounds.editable_paths), fg, hops=opts.get("hops", 1),
+        min_strength=opts.get("min_strength", 0), max_fraction=opts.get("max_fraction", 0.4))
+
+
 def _nodes(cfg: StackConfig, task: Task, tracer, run):
     def plan(state: dict) -> dict:
         with tracer.span("L2.plan"):
             bounds = cfg.spec.plan(task)
-        run.put(bounds)                            # persist Bounds artifact
+        _maybe_expand(cfg, task, bounds, tracer)   # L1: widen along the context graph
+        run.put(bounds)                            # persist Bounds artifact (post-expansion)
         return {"bounds": bounds}
 
     def execute(state: dict) -> dict:
