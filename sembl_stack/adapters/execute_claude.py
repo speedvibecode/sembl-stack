@@ -17,9 +17,16 @@ operator's OAuth login. Default auth keeps the "never see a token" property.
 from __future__ import annotations
 
 import shutil
-import subprocess
+import subprocess  # noqa: F401  (kept for tests that monkeypatch cc.subprocess.run)
 
-from .base import Bounds, ExecutionResult, Sandbox, Task
+from .base import (
+    Bounds,
+    ExecutionResult,
+    Sandbox,
+    Task,
+    changed_files_from_diff as _changed_files,
+    run_executor,
+)
 
 
 class ClaudeCodeExecutor:
@@ -39,19 +46,21 @@ class ClaudeCodeExecutor:
         if self.model:
             cmd += ["--model", self.model]
         cmd.append(prompt)
-        proc = subprocess.run(
-            cmd, cwd=sandbox.workdir, capture_output=True, text=True,
-            timeout=self.timeout)
+        rc, out, err, timed_out = run_executor(
+            cmd, cwd=sandbox.workdir, timeout=self.timeout)
 
         diff = sandbox.diff()
         report = {
             "files_modified": _changed_files(diff),
             "agent": "claude-code",
             "model": self.model,
-            "exit_code": proc.returncode,
-            "output": (proc.stdout or "")[-2000:],
-            "stderr": (proc.stderr or "")[-1000:],
+            "exit_code": rc,
+            "output": out[-2000:],
+            "stderr": err[-1000:],
         }
+        if timed_out:                          # surfaced to the gate as a BLOCK, not a crash
+            report["error"] = "timeout"
+            report["timed_out"] = True
         return ExecutionResult(diff=diff, report=report, workdir=sandbox.workdir)
 
     @staticmethod
@@ -65,11 +74,3 @@ class ClaudeCodeExecutor:
         if feedback:
             lines += ["", feedback]
         return "\n".join(lines)
-
-
-def _changed_files(diff: str) -> list[str]:
-    files = []
-    for line in diff.splitlines():
-        if line.startswith("+++ b/"):
-            files.append(line[6:])
-    return files

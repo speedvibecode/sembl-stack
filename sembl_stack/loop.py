@@ -10,11 +10,12 @@ installs. Every node is wrapped in a Langfuse span via the tracer.
 """
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass, field
 from typing import Any, TypedDict
 
 from .adapters.base import Task, Verdict
-from .artifacts import Trace
+from .artifacts import Change, Trace
 from .config import StackConfig
 from .store import RunStore
 from .tracing import get_tracer
@@ -61,6 +62,42 @@ def _is_empty_change(change) -> bool:
     return True
 
 
+def _execution_error(change) -> str | None:
+    """A hard executor failure (timeout / crash) recorded by the adapter, or None.
+
+    The adapters convert a `TimeoutExpired` / internal crash into `report["error"]`
+    instead of letting it abort the loop; this reads that signal back so the verify
+    stage can BLOCK rather than the loop raising.
+    """
+    report = getattr(change, "report", {}) or {}
+    err = report.get("error")
+    return str(err) if err else None
+
+
+def _nonzero_exit(change) -> int | None:
+    """The executor's non-zero process exit code, if any (else None).
+
+    A non-zero exit means the agent process did not finish cleanly. The gate verifies the
+    *change* (bounds + claim integrity), not process health — so a non-zero exit that still
+    produced an in-scope diff would otherwise PASS silently. The loop surfaces it instead.
+    """
+    report = getattr(change, "report", {}) or {}
+    rc = report.get("exit_code")
+    return rc if isinstance(rc, int) and rc != 0 else None
+
+
+def _usage_tokens(report: dict):
+    """Total tokens an executor reported, if any (C1.3) — best-effort, never required.
+
+    Accepts a few shapes: `usage.total_tokens`, `usage.tokens`, or a bare `tokens`. Returns
+    None when the executor didn't surface usage (the common case for the OAuth/CLI agents).
+    """
+    usage = report.get("usage")
+    if isinstance(usage, dict):
+        return usage.get("total_tokens") or usage.get("tokens")
+    return report.get("tokens")
+
+
 def _maybe_expand(cfg: StackConfig, task: Task, bounds, tracer) -> None:
     """L1 context stage (in-loop): widen `bounds.editable_paths` along the coupling closure.
 
@@ -95,19 +132,59 @@ def _nodes(cfg: StackConfig, task: Task, tracer, run):
 
     def execute(state: dict) -> dict:
         n = state["attempt"] + 1
+        prev = state.get("sandbox")
+        if prev is not None:
+            prev.close()                           # fresh cage per attempt
+        sandbox = cfg.sandbox.open(task.repo)
+        t0 = time.perf_counter()
         with tracer.span("L3.execute", attempt=n):
-            prev = state.get("sandbox")
-            if prev is not None:
-                prev.close()                       # fresh cage per attempt
-            sandbox = cfg.sandbox.open(task.repo)
-            result = cfg.execute.run(task, state["bounds"], sandbox,
-                                     state.get("feedback"))
+            try:
+                result = cfg.execute.run(task, state["bounds"], sandbox,
+                                         state.get("feedback"))
+            except Exception as exc:
+                # An executor that crashes (or whose subprocess raises past the adapter's
+                # own timeout handling) must NOT abort the loop, leak the sandbox, or skip
+                # the persisted verdict. Convert the failure into a recorded Change so the
+                # verify stage turns it into a BLOCK and the run still completes cleanly.
+                diff = ""
+                try:
+                    diff = sandbox.diff()
+                except Exception:
+                    pass
+                result = Change(
+                    diff=diff, workdir=getattr(sandbox, "workdir", ""),
+                    report={"error": "executor-crashed", "exit_code": -1,
+                            "detail": repr(exc)})
+        latency_s = round(time.perf_counter() - t0, 3)
+
+        # C1.3: record cost+latency per attempt. Latency is always measured here (wall
+        # clock around the executor); tokens/cost ride along only when the adapter reported
+        # usage. Stamp latency onto the Change report too so a single artifact is enough.
+        report = dict(getattr(result, "report", {}) or {})
+        report.setdefault("latency_s", latency_s)
+        result.report = report
         run.put(result, name=f"change-{n}")        # persist Change per attempt
+        run.record_attempt(
+            n, latency_s=latency_s, agent=report.get("agent"), model=report.get("model"),
+            exit_code=report.get("exit_code"), tokens=_usage_tokens(report),
+            cost=report.get("cost"))
         return {"sandbox": sandbox, "result": result}
 
     def verify(state: dict) -> dict:
         change = state["result"]
-        if _is_empty_change(change):
+        exec_err = _execution_error(change)
+        if exec_err is not None:
+            # C1 hardening: a hard executor failure (timeout / crash) is not a verdict the
+            # gate can issue — the gate checks a *change*, not process health. Block directly
+            # so a timed-out or crashed run never sails through as PASS, and hand the executor
+            # actionable feedback on retry. (No gate call: there's nothing trustworthy to
+            # verify.)
+            verdict = Verdict(
+                status="BLOCK",
+                reasons=[f"executor failed ({exec_err}) — the task was not implemented; "
+                         "check the executor/model output"],
+                raw={"execution_error": exec_err, "report": getattr(change, "report", {})})
+        elif _is_empty_change(change):
             # C1 hardening: a no-op execution (empty diff — e.g. the executor errored, hit a
             # dead model, or wrote nothing) must NOT pass. The gate verifies a *change*; with
             # no change there is nothing that satisfies the task, so block and tell the
@@ -120,6 +197,17 @@ def _nodes(cfg: StackConfig, task: Task, tracer, run):
         else:
             with tracer.span("L5.verify"):
                 verdict = cfg.verify.verify(state["bounds"], change, cfg.strict)
+            rc = _nonzero_exit(change)
+            if rc is not None and verdict.status == "PASS":
+                # The change passed the gate but the executor process exited non-zero — it
+                # did not complete cleanly. Don't report an unqualified PASS: downgrade to
+                # WARN and record why, so a half-finished run is never mistaken for success.
+                verdict = Verdict(
+                    status="WARN",
+                    reasons=list(verdict.reasons)
+                    + [f"executor exited non-zero (exit_code={rc}); the change was applied "
+                       "but the run did not complete cleanly"],
+                    raw={**(getattr(verdict, "raw", {}) or {}), "exit_code": rc})
         attempt = state["attempt"] + 1
         run.put(verdict, name=f"verdict-{attempt}")
         return {
@@ -158,8 +246,11 @@ def run(cfg: StackConfig, task: Task) -> LoopResult:
     verdict = final["verdict"]
     run_rec.put(verdict)
     run_rec.put(Trace(steps=[{"attempt": a, "status": s} for a, s in final["history"]]))
+    log = run_rec.manifest().get("attempts_log", [])             # C1.3 per-attempt metrics
+    total_latency_s = round(sum(e.get("latency_s", 0) for e in log), 3)
     run_rec.set_status("PASS" if verdict.status in ("PASS", "WARN") else "BLOCK",
-                       attempts=final["attempt"], engine=engine)
+                       attempts=final["attempt"], engine=engine,
+                       total_latency_s=total_latency_s)
 
     return LoopResult(
         verdict=verdict, attempts=final["attempt"],

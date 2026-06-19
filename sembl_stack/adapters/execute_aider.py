@@ -22,7 +22,14 @@ import shutil
 import subprocess
 from pathlib import Path
 
-from .base import Bounds, ExecutionResult, Sandbox, Task
+from .base import (
+    Bounds,
+    ExecutionResult,
+    Sandbox,
+    Task,
+    changed_files_from_diff as _changed_files,
+    run_executor,
+)
 
 
 class AiderExecutor:
@@ -44,9 +51,8 @@ class AiderExecutor:
             cmd += ["--model", self.model]
         cmd += ["--message", prompt]
         cmd += _file_targets(bounds)          # focus aider on the in-scope files
-        proc = subprocess.run(
-            cmd, cwd=sandbox.workdir, capture_output=True, text=True,
-            stdin=subprocess.DEVNULL, timeout=self.timeout)
+        rc, out, err, timed_out = run_executor(
+            cmd, cwd=sandbox.workdir, timeout=self.timeout, stdin=subprocess.DEVNULL)
 
         _clean_aider_scratch(sandbox.workdir)   # drop aider's own .aider* artifacts
         diff = sandbox.diff()
@@ -54,10 +60,13 @@ class AiderExecutor:
             "files_modified": _changed_files(diff),
             "agent": "aider",
             "model": self.model,
-            "exit_code": proc.returncode,
-            "output": (proc.stdout or "")[-2000:],
-            "stderr": (proc.stderr or "")[-1000:],
+            "exit_code": rc,
+            "output": out[-2000:],
+            "stderr": err[-1000:],
         }
+        if timed_out:                          # surfaced to the gate as a BLOCK, not a crash
+            report["error"] = "timeout"
+            report["timed_out"] = True
         return ExecutionResult(diff=diff, report=report, workdir=sandbox.workdir)
 
     @staticmethod
@@ -103,21 +112,3 @@ def _file_targets(bounds: Bounds) -> list[str]:
         if "." in p.rsplit("/", 1)[-1]:       # looks like a file (has an extension)
             out.append(p)
     return out
-
-
-def _changed_files(diff: str) -> list[str]:
-    """Files touched by the diff, from the `diff --git a/X b/Y` headers.
-
-    Parsing the git header (not the `+++ b/` line) is deliberate: an EMPTY new file —
-    e.g. an agent that created a file but wrote no content — has a `diff --git` header but
-    no `+++` hunk, so a `+++`-only parser silently drops it and the report under-reports
-    what actually changed (the gate then flags an "unreported change"). The header always
-    names the file.
-    """
-    files = []
-    for line in diff.splitlines():
-        if line.startswith("diff --git "):
-            head, _, tail = line.partition(" b/")
-            if tail:
-                files.append(tail.strip())
-    return files

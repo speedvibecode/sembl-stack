@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+import sys
 from pathlib import Path
 
 from .base import Bounds, Task
@@ -49,8 +50,12 @@ class SemblSpecAdapter:
         # 2) CLI fallback (the CLI prints a panel then the JSON — extract the JSON)
         if spec:
             try:
+                # Invoke via the running interpreter (`python -m sembl.cli`) rather than a
+                # bare `sembl` on PATH — the shared venv has sembl installed but its Scripts
+                # dir may not be on PATH, which made this fallback raise FileNotFoundError.
                 proc = subprocess.run(
-                    ["sembl", "bounds", "--spec-kit", spec, "--repo", task.repo],
+                    [sys.executable, "-m", "sembl.cli", "bounds",
+                     "--spec-kit", spec, "--repo", task.repo],
                     capture_output=True, text=True, cwd=task.repo, timeout=120,
                 )
                 payload = _extract_json(proc.stdout)

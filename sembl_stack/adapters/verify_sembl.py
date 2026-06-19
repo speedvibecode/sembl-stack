@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 
@@ -52,7 +53,11 @@ class SemblVerifyAdapter:
             bf.write_text(json.dumps(bounds.to_contract()), encoding="utf-8")
             rf.write_text(json.dumps(result.report), encoding="utf-8")
             pf.write_text(result.diff, encoding="utf-8")
-            cmd = ["sembl", "verify", "--diff", str(pf),
+            # Invoke via the running interpreter (`python -m sembl.cli`) rather than a bare
+            # `sembl` on PATH: sembl-stack runs on the shared venv that has sembl installed,
+            # but PATH may not include its Scripts dir, which made the CLI fallback raise
+            # FileNotFoundError. `sys.executable -m` resolves the same package every time.
+            cmd = [sys.executable, "-m", "sembl.cli", "verify", "--diff", str(pf),
                    "--wo-file", str(bf), "--report", str(rf), "--json"]
             if strict:
                 cmd.append("--strict")

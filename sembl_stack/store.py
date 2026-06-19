@@ -54,6 +54,20 @@ class Run:
         m.update(extra)
         self._write_manifest(m)
 
+    def record_attempt(self, attempt: int, **metric) -> None:
+        """Append a per-attempt cost/latency record to the manifest (C1.3).
+
+        One entry per execute call: `{attempt, latency_s, agent, model, exit_code,
+        tokens, cost}` (tokens/cost only where the executor reported usage). This is the
+        signal `sembl-stack runs` shows and that the process-RSI / eval (B) layer consumes.
+        Keys with a None value are dropped so the manifest stays clean.
+        """
+        m = self.manifest()
+        entry = {"attempt": attempt}
+        entry.update({k: v for k, v in metric.items() if v is not None})
+        m.setdefault("attempts_log", []).append(entry)
+        self._write_manifest(m)
+
     def _touch_manifest(self, name: str, kind: str, fname: str) -> None:
         m = self.manifest()
         m.setdefault("artifacts", {})[name] = {

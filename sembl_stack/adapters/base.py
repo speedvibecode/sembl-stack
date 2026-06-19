@@ -6,6 +6,7 @@ here so adapters import everything they need from one place.
 """
 from __future__ import annotations
 
+import subprocess
 from typing import Protocol, runtime_checkable
 
 from ..artifacts import (  # noqa: F401  (re-exported for adapters)
@@ -18,6 +19,63 @@ from ..artifacts import (  # noqa: F401  (re-exported for adapters)
     Trace,
     Verdict,
 )
+
+
+# --- Shared adapter helpers ---------------------------------------------------
+
+def changed_files_from_diff(diff: str) -> list[str]:
+    """Files touched by a unified git diff, order-preserved and de-duplicated.
+
+    Reads BOTH the `diff --git a/… b/…` headers and the `+++ b/…` markers, unioned:
+      * the `diff --git` header names a file even when it has no `+++` hunk — e.g. an
+        EMPTY new file an errored agent created. A `+++`-only parser silently drops it,
+        and the gate then flags a spurious "unreported change";
+      * the `+++ b/` marker is the fallback for a diff fragment that arrives without a
+        full header.
+    `/dev/null` (the add/delete sentinel) is skipped. Every executor adapter uses this
+    one parser so Claude/OpenCode/Aider report changed files consistently.
+    """
+    seen: set[str] = set()
+    out: list[str] = []
+
+    def add(path: str) -> None:
+        path = path.strip()
+        if path and path != "/dev/null" and path not in seen:
+            seen.add(path)
+            out.append(path)
+
+    for line in diff.splitlines():
+        if line.startswith("diff --git "):
+            _, _, tail = line.partition(" b/")
+            if tail:
+                add(tail)
+        elif line.startswith("+++ "):
+            marker = line[4:]
+            if marker.startswith("b/"):
+                marker = marker[2:]
+            add(marker.split("\t", 1)[0])     # drop a trailing tab-timestamp if present
+    return out
+
+
+def run_executor(cmd: list[str], cwd: str, timeout: int, **run_kwargs):
+    """Run an executor subprocess, turning a timeout into a structured signal.
+
+    Returns ``(returncode, stdout, stderr, timed_out)``. A `subprocess.TimeoutExpired`
+    is caught here (its partial stdout/stderr preserved) instead of being allowed to
+    propagate and abort the whole loop — the caller records `timed_out` in the report so
+    the gate stage can convert it to a BLOCK rather than a crash.
+    """
+    try:
+        proc = subprocess.run(
+            cmd, cwd=cwd, capture_output=True, text=True, timeout=timeout, **run_kwargs)
+        return proc.returncode, proc.stdout or "", proc.stderr or "", False
+    except subprocess.TimeoutExpired as exc:
+        out, err = exc.stdout or "", exc.stderr or ""
+        if isinstance(out, bytes):
+            out = out.decode("utf-8", "replace")
+        if isinstance(err, bytes):
+            err = err.decode("utf-8", "replace")
+        return -1, out, err, True
 
 
 # --- Layer interfaces (Protocols) ---------------------------------------------
