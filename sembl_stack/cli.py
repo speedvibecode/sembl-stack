@@ -17,7 +17,7 @@ from pathlib import Path
 import click
 import yaml
 
-from . import artifacts, registry
+from . import artifacts, doctor as doctor_mod, presets, registry
 from .artifacts import Bounds, Change, Task, Verdict
 from .config import load
 from .loop import run as run_loop
@@ -213,6 +213,58 @@ def verify(change_path, diff_path, report_path, bounds_path, strict, config_path
     raise SystemExit(0 if verdict.status in ("PASS", "WARN") else 1)
 
 
+# --- onboarding (C4) -----------------------------------------------------------
+
+@main.command()
+@click.option("--preset", type=click.Choice(presets.names()),
+              default=presets.DEFAULT_PRESET, show_default=True,
+              help="just-gate (wedge) | gate+sandbox (mock loop) | full-loop (real agent).")
+@click.option("--config", "config_path", default="sembl.stack.yaml", show_default=True)
+@click.option("--task/--no-task", "with_task", default=True,
+              help="Also scaffold a starter task.yaml.")
+@click.option("--force", is_flag=True, help="Overwrite existing files.")
+def init(preset, config_path, with_task, force):
+    """Scaffold a sembl.stack.yaml (+ a starter task.yaml) from a preset."""
+    cfg_p = Path(config_path)
+    if cfg_p.exists() and not force:
+        raise click.UsageError(f"{config_path} already exists (use --force to overwrite)")
+    cfg_p.write_text(presets.render(preset), encoding="utf-8")
+    click.secho(f"wrote {config_path}  (preset: {preset})", fg="green")
+    if with_task:
+        tp = Path("task.yaml")
+        if tp.exists() and not force:
+            click.echo("  task.yaml exists — left as-is")
+        else:
+            tp.write_text(presets.starter_task(), encoding="utf-8")
+            click.secho("wrote task.yaml", fg="green")
+    click.echo("\nnext:\n  sembl-stack doctor          # check your environment\n"
+               "  sembl-stack loop task.yaml  # run the loop")
+
+
+@main.command()
+@click.option("--config", "config_path", default="sembl.stack.yaml")
+def doctor(config_path):
+    """Preflight: check the environment for the layers your config selects."""
+    cfg = load(config_path) if Path(config_path).is_file() else None
+    if cfg is None:
+        click.echo(f"(no {config_path} — checking defaults; `sembl-stack init` first)\n")
+    checks = doctor_mod.run_checks(cfg)
+    for c in checks:
+        mark, color = ("OK", "green") if c.ok else \
+            (("X", "red") if c.required else ("~", "yellow"))
+        click.secho(f"  [{mark}] {c.name:26} {c.detail}", fg=color)
+        if not c.ok and c.hint:
+            click.echo(f"         -> {c.hint}")
+    ready, blocking, warnings = doctor_mod.summarize(checks)
+    click.echo("")
+    if ready:
+        extra = f" ({len(warnings)} optional not installed)" if warnings else ""
+        click.secho(f"doctor: ready{extra}", fg="green")
+    else:
+        click.secho(f"doctor: NOT ready — {len(blocking)} required item(s) missing", fg="red")
+    raise SystemExit(0 if ready else 1)
+
+
 # --- introspection ------------------------------------------------------------
 
 @main.command()
@@ -223,18 +275,93 @@ def layers():
 
 
 @main.command()
+@click.argument("run_id", required=False)
 @click.option("--repo", default=".")
-def runs(repo):
-    """List recorded runs (the run store) — the signal source for self-improvement."""
+@click.option("-v", "--verbose", is_flag=True, help="Show per-attempt latency/cost.")
+def runs(run_id, repo, verbose):
+    """List recorded runs, or inspect one in detail: `sembl-stack runs <id>`."""
     store = RunStore(repo)
+    if run_id:
+        _show_run(store, run_id)
+        return
     ids = store.list_runs()
     if not ids:
-        click.echo("no runs yet")
+        click.echo("no runs yet — try `sembl-stack loop task.yaml`")
         return
     for rid in ids:
         m = store.open(rid).manifest()
+        lat = m.get("total_latency_s")
+        lat_s = f"{lat:.2f}s" if isinstance(lat, (int, float)) else "-"
         click.echo(f"{rid}  {m.get('status','?'):6}  "
-                   f"attempts={m.get('attempts','-')}  {m.get('task',{}).get('text','')}")
+                   f"attempts={m.get('attempts','-')}  {lat_s:>8}  "
+                   f"{m.get('task',{}).get('text','')}")
+        if verbose:
+            for e in m.get("attempts_log", []):
+                bits = [f"latency={e.get('latency_s','-')}s"]
+                for k in ("model", "exit_code", "tokens", "cost"):
+                    if e.get(k) is not None:
+                        bits.append(f"{k}={e[k]}")
+                click.echo(f"    attempt {e.get('attempt','?')}: " + "  ".join(bits))
+
+
+@main.command()
+@click.option("--repo", default=".")
+@click.option("--refresh", default=3.0, show_default=True,
+              help="Seconds between live refreshes (0 to disable).")
+def dash(repo, refresh):
+    """Live run dashboard (O6 TUI). Needs the tui extra: pip install 'sembl-stack[tui]'."""
+    from . import tui
+    if not tui.available():
+        raise click.UsageError(
+            "the TUI needs Textual — `pip install \"sembl-stack[tui]\"`.\n"
+            "  (meanwhile `sembl-stack runs` and `runs <id>` give the same data as text.)")
+    store = RunStore(repo)
+    if not store.list_runs():
+        click.echo("no runs yet — try `sembl-stack loop task.yaml`")
+        return
+    tui.run_dashboard(store, refresh_s=refresh)
+
+
+def _show_run(store, run_id: str) -> None:
+    """Detailed single-run view: task, bounds, per-attempt verdict+latency, final."""
+    run = store.open(run_id)
+    m = run.manifest()
+    if not m:
+        raise click.UsageError(f"no run '{run_id}' under {store.root}")
+    click.secho(f"run {run_id}", bold=True)
+    lat = m.get("total_latency_s")
+    lat_s = f"{lat:.2f}s" if isinstance(lat, (int, float)) else "-"
+    click.echo(f"  status:  {m.get('status','?')}   attempts={m.get('attempts','-')}   "
+               f"engine={m.get('engine','-')}   latency={lat_s}")
+    task = m.get("task", {})
+    if task:
+        click.echo(f"  task:    {task.get('text','')}")
+        click.echo(f"  repo:    {task.get('repo','')}")
+    bounds = run.get("bounds")
+    if bounds is not None:
+        click.echo(f"  bounds:  editable={bounds.editable_paths}  "
+                   f"forbidden={bounds.forbidden_areas}  churn={bounds.churn_budget}")
+
+    log = {e.get("attempt"): e for e in m.get("attempts_log", [])}
+    n = m.get("attempts") or 0
+    if n:
+        click.echo("  attempts:")
+    for i in range(1, n + 1):
+        v = run.get(f"verdict-{i}")
+        meta = log.get(i, {})
+        status = v.status if v else "?"
+        color = "green" if status == "PASS" else "yellow" if status == "WARN" else "red"
+        extra = f"  model={meta['model']}" if meta.get("model") else ""
+        click.secho(f"    {i}: [{status}]  latency={meta.get('latency_s','-')}s{extra}",
+                    fg=color)
+        for r in (v.reasons if v else []):
+            click.echo(f"         - {r}")
+
+    fv = run.get("verdict")
+    if fv is not None:
+        color = "green" if fv.status == "PASS" else "yellow" if fv.status == "WARN" else "red"
+        click.secho(f"  final:   {fv.status}", fg=color)
+    click.echo(f"  artifacts: {run.dir}")
 
 
 if __name__ == "__main__":

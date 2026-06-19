@@ -46,11 +46,32 @@ LangGraph drives the state machine (retry-on-BLOCK); Langfuse traces every node.
 Both are optional — a built-in fallback runner and no-op tracer keep the loop bootable
 with zero extra installs.
 
-## Run it
+## Quickstart
 
 ```bash
-pip install -e .                 # + `sembl` on PATH (the gate)
-sembl-stack run examples/tasks/login-redirect/task.yaml
+pip install -e .                 # + the gate:  pip install sembl
+sembl-stack init                 # scaffold sembl.stack.yaml + task.yaml from a preset
+sembl-stack doctor               # preflight: is the environment ready for this config?
+sembl-stack loop task.yaml       # run the loop (plan → execute → gate → retry-on-BLOCK)
+sembl-stack runs                 # list runs (status, attempts, latency)
+sembl-stack runs <id>            # inspect one: per-attempt verdicts, reasons, latency
+sembl-stack dash                 # live TUI dashboard  (pip install "sembl-stack[tui]")
+```
+
+`init` has three presets for the adoption ramp:
+
+| preset | what it gives you | needs |
+|---|---|---|
+| `just-gate` | the wedge — gate any diff/PR (`verify --diff`) | just `sembl` |
+| `gate+sandbox` | the whole loop with a deterministic mock executor | no API keys |
+| `full-loop` | a real agent writes, the sandbox contains, Sembl gates | `claude` on PATH |
+
+`doctor` is config-aware — it only requires the layers your config actually selects (it
+won't ask for `claude` when `execute: mock`) and prints an actionable hint for anything
+missing. Optional pieces (langgraph, MCP) degrade to warnings, not failures.
+
+```bash
+sembl-stack init --preset full-loop   # or just-gate | gate+sandbox
 ```
 
 ## Swap a layer

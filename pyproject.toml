@@ -20,8 +20,9 @@ gate = ["sembl>=0.1.18"]
 mcp = ["mcp>=1.0"]
 orchestrate = ["langgraph>=0.2"]
 trace = ["langfuse>=2.0"]
+tui = ["textual>=0.50"]              # the O6 run dashboard (`sembl-stack dash`)
 # Everything, for the full reference factory.
-all = ["sembl>=0.1.18", "mcp>=1.0", "langgraph>=0.2", "langfuse>=2.0"]
+all = ["sembl>=0.1.18", "mcp>=1.0", "langgraph>=0.2", "langfuse>=2.0", "textual>=0.50"]
 
 [project.scripts]
 sembl-stack = "sembl_stack.cli:main"
