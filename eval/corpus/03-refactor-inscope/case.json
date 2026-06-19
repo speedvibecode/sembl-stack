@@ -1,0 +1,25 @@
+{
+  "name": "03-refactor-inscope",
+  "kind": "refactor",
+  "label": "clean",
+  "strict": true,
+  "expect": "PASS",
+  "task": "Extract a helper in the util module.",
+  "bounds": {
+    "editable_paths": [
+      "src/util.py"
+    ],
+    "forbidden_areas": [],
+    "churn_budget": {
+      "max_files": 2
+    }
+  },
+  "diff": "diff --git a/src/util.py b/src/util.py\n--- a/src/util.py\n+++ b/src/util.py\n@@ -1,2 +1,3 @@\n line\n+added line\n line2\n",
+  "report": {
+    "files_modified": [
+      "src/util.py"
+    ],
+    "tests_passed": true,
+    "output": "pytest: 30 passed"
+  }
+}

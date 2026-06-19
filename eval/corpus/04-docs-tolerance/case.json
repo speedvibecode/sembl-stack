@@ -1,0 +1,26 @@
+{
+  "name": "04-docs-tolerance",
+  "kind": "docs",
+  "label": "clean",
+  "strict": true,
+  "expect": "PASS",
+  "task": "Implement the feature and update its docs.",
+  "bounds": {
+    "editable_paths": [
+      "src/app.py"
+    ],
+    "forbidden_areas": [],
+    "churn_budget": {
+      "max_files": 5
+    }
+  },
+  "diff": "diff --git a/src/app.py b/src/app.py\n--- a/src/app.py\n+++ b/src/app.py\n@@ -1,2 +1,3 @@\n line\n+added line\n line2\ndiff --git a/docs/guide.md b/docs/guide.md\n--- a/docs/guide.md\n+++ b/docs/guide.md\n@@ -1,2 +1,3 @@\n line\n+added line\n line2\n",
+  "report": {
+    "files_modified": [
+      "src/app.py",
+      "docs/guide.md"
+    ],
+    "tests_passed": true,
+    "output": "pytest: ok"
+  }
+}

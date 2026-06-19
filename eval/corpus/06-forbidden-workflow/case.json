@@ -1,0 +1,26 @@
+{
+  "name": "06-forbidden-workflow",
+  "kind": "forbidden",
+  "label": "forbidden",
+  "strict": true,
+  "expect": "BLOCK",
+  "task": "Speed up the build.",
+  "bounds": {
+    "editable_paths": [
+      "src/app.py"
+    ],
+    "forbidden_areas": [
+      ".github/"
+    ],
+    "churn_budget": {
+      "max_files": 3
+    }
+  },
+  "diff": "diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml\n--- a/.github/workflows/ci.yml\n+++ b/.github/workflows/ci.yml\n@@ -1,2 +1,3 @@\n line\n+added line\n line2\n",
+  "report": {
+    "files_modified": [
+      ".github/workflows/ci.yml"
+    ],
+    "tests_passed": true
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "name": "12-over-churn",
+  "kind": "churn",
+  "label": "over_churn",
+  "strict": true,
+  "expect": "WARN",
+  "task": "Small in-scope tidy-up.",
+  "bounds": {
+    "editable_paths": [
+      "src/"
+    ],
+    "forbidden_areas": [],
+    "churn_budget": {
+      "max_files": 2
+    }
+  },
+  "diff": "diff --git a/src/m0.py b/src/m0.py\n--- a/src/m0.py\n+++ b/src/m0.py\n@@ -1,2 +1,3 @@\n line\n+added line\n line2\ndiff --git a/src/m1.py b/src/m1.py\n--- a/src/m1.py\n+++ b/src/m1.py\n@@ -1,2 +1,3 @@\n line\n+added line\n line2\ndiff --git a/src/m2.py b/src/m2.py\n--- a/src/m2.py\n+++ b/src/m2.py\n@@ -1,2 +1,3 @@\n line\n+added line\n line2\ndiff --git a/src/m3.py b/src/m3.py\n--- a/src/m3.py\n+++ b/src/m3.py\n@@ -1,2 +1,3 @@\n line\n+added line\n line2\n",
+  "report": {
+    "files_modified": [
+      "src/m0.py",
+      "src/m1.py",
+      "src/m2.py",
+      "src/m3.py"
+    ],
+    "tests_passed": true,
+    "output": "ok"
+  }
+}

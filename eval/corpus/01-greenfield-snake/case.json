@@ -1,0 +1,29 @@
+{
+  "name": "01-greenfield-snake",
+  "kind": "greenfield",
+  "label": "clean",
+  "strict": true,
+  "expect": "PASS",
+  "task": "Create a playable Snake game (snake.js + index.html).",
+  "bounds": {
+    "editable_paths": [
+      "snake.js",
+      "index.html"
+    ],
+    "forbidden_areas": [
+      "specs/"
+    ],
+    "churn_budget": {
+      "max_files": 4
+    }
+  },
+  "diff": "diff --git a/snake.js b/snake.js\nnew file mode 100644\n--- /dev/null\n+++ b/snake.js\n@@ -0,0 +1,2 @@\n+// added\n+const X = 1;\ndiff --git a/index.html b/index.html\nnew file mode 100644\n--- /dev/null\n+++ b/index.html\n@@ -0,0 +1,2 @@\n+// added\n+const X = 1;\n",
+  "report": {
+    "files_modified": [
+      "snake.js",
+      "index.html"
+    ],
+    "tests_passed": true,
+    "output": "opened in browser, snake moves: OK"
+  }
+}
