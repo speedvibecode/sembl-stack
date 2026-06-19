@@ -12,6 +12,7 @@ custom step between two stages (read the upstream artifact, write the downstream
 from __future__ import annotations
 
 import json
+import subprocess
 from pathlib import Path
 
 import click
@@ -90,6 +91,9 @@ def _loop_cmd(task_file: str, config_path: str):
         click.echo(f"  - {r}")
     if result.run_id:
         click.echo(f"\nrun: {result.run_id}  (.sembl/runs/{result.run_id}/)")
+        click.echo(f"inspect: sembl-stack runs {result.run_id} --repo {task.repo}")
+        if v.status in ("PASS", "WARN"):
+            click.echo(f"apply:   sembl-stack apply {result.run_id} --repo {task.repo}")
     raise SystemExit(0 if v.status in ("PASS", "WARN") else 1)
 
 
@@ -304,6 +308,59 @@ def runs(run_id, repo, verbose):
                 click.echo(f"    attempt {e.get('attempt','?')}: " + "  ".join(bits))
 
 
+@main.command(name="apply")
+@click.argument("run_id")
+@click.option("--repo", default=".")
+@click.option("--allow-warn", is_flag=True,
+              help="Allow applying a final WARN verdict. BLOCK is never applied.")
+@click.option("--check", "check_only", is_flag=True,
+              help="Only verify that the patch applies; do not change the working tree.")
+def apply_run(run_id, repo, allow_warn, check_only):
+    """Apply a run's final accepted patch to the source repo working tree."""
+    repo_path = Path(repo).resolve()
+    store = RunStore(str(repo_path))
+    run = store.open(run_id)
+    m = run.manifest()
+    if not m:
+        raise click.UsageError(f"no run '{run_id}' under {store.root}")
+
+    verdict = run.get("verdict")
+    status = getattr(verdict, "status", m.get("status", "BLOCK"))
+    if status == "BLOCK":
+        raise click.UsageError("refusing to apply a BLOCKed run")
+    if status == "WARN" and not allow_warn:
+        raise click.UsageError("refusing to apply WARN without --allow-warn")
+
+    change = run.get("change")
+    if change is None:
+        attempts = m.get("attempts")
+        change = run.get(f"change-{attempts}") if attempts else None
+    if change is None or not (getattr(change, "diff", "") or "").strip():
+        raise click.UsageError("run has no final patch to apply")
+
+    _git_apply(repo_path, change.diff, check_only=check_only)
+    action = "checked" if check_only else "applied"
+    click.secho(f"{action} {run_id} -> {repo_path}", fg="green")
+
+
+def _git_apply(repo: Path, diff: str, *, check_only: bool) -> None:
+    check = subprocess.run(
+        ["git", "apply", "--check", "-"], cwd=repo, input=diff,
+        capture_output=True, text=True)
+    if check.returncode != 0:
+        raise click.ClickException(
+            "patch does not apply cleanly: "
+            + (check.stderr.strip() or check.stdout.strip() or "git apply --check failed"))
+    if check_only:
+        return
+    proc = subprocess.run(
+        ["git", "apply", "-"], cwd=repo, input=diff,
+        capture_output=True, text=True)
+    if proc.returncode != 0:
+        raise click.ClickException(
+            proc.stderr.strip() or proc.stdout.strip() or "git apply failed")
+
+
 @main.command()
 @click.option("--repo", default=".")
 @click.option("--refresh", default=3.0, show_default=True,
@@ -361,6 +418,17 @@ def _show_run(store, run_id: str) -> None:
     if fv is not None:
         color = "green" if fv.status == "PASS" else "yellow" if fv.status == "WARN" else "red"
         click.secho(f"  final:   {fv.status}", fg=color)
+    ch = run.get("change")
+    if ch is None and n:
+        ch = run.get(f"change-{n}")
+    if ch is not None:
+        files = (getattr(ch, "report", {}) or {}).get("files_modified") or []
+        suffix = f"  files={files}" if files else ""
+        click.echo(f"  patch:   change.json{suffix}")
+        if fv is not None and fv.status in ("PASS", "WARN"):
+            repo = (task or {}).get("repo", ".")
+            warn = " --allow-warn" if fv.status == "WARN" else ""
+            click.echo(f"  apply:   sembl-stack apply {run_id} --repo {repo}{warn}")
     click.echo(f"  artifacts: {run.dir}")
 
 

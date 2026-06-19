@@ -9,13 +9,17 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
+from click.testing import CliRunner
+
 from sembl_stack.adapters.base import Task
 from sembl_stack.config import StackConfig
 from sembl_stack.adapters.spec_sembl import SemblSpecAdapter
 from sembl_stack.adapters.execute_mock import MockExecutor
 from sembl_stack.adapters.sandbox_worktree import WorktreeSandbox
 from sembl_stack.adapters.verify_sembl import SemblVerifyAdapter
+from sembl_stack.cli import main
 from sembl_stack.loop import run
+from sembl_stack.store import RunStore
 
 
 def _git(args, cwd):
@@ -72,3 +76,17 @@ def test_loop_blocks_then_passes(tmp_path):
     assert statuses[0] == "BLOCK", f"first attempt should block, got {statuses}"
     assert result.verdict.status == "PASS", f"loop should end PASS, got {statuses}"
     assert result.attempts >= 2
+
+    stored = RunStore(str(repo)).open(result.run_id)
+    assert stored.manifest()["status"] == "PASS"
+    assert stored.get("change") is not None
+
+    runner = CliRunner()
+    checked = runner.invoke(main, ["apply", result.run_id, "--repo", str(repo), "--check"])
+    assert checked.exit_code == 0, checked.output
+    app_file = repo / "src" / "app" / "__init__.py"
+    assert app_file.read_text(encoding="utf-8") == "# app\n"
+
+    applied = runner.invoke(main, ["apply", result.run_id, "--repo", str(repo)])
+    assert applied.exit_code == 0, applied.output
+    assert app_file.read_text(encoding="utf-8").endswith("VALUE = 1\n")

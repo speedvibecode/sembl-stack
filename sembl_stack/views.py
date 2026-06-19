@@ -60,5 +60,15 @@ def detail_lines(store, run_id: str) -> list[str] | None:
     fv = run.get("verdict")
     if fv is not None:
         out.append(f"  final:   {fv.status}")
+    change = run.get("change")
+    if change is None and n:
+        change = run.get(f"change-{n}")
+    if change is not None:
+        files = (getattr(change, "report", {}) or {}).get("files_modified") or []
+        suffix = f"  files={files}" if files else ""
+        out.append(f"  patch:   change.json{suffix}")
+        if fv is not None and fv.status in ("PASS", "WARN"):
+            warn = " --allow-warn" if fv.status == "WARN" else ""
+            out.append(f"  apply:   sembl-stack apply {run_id} --repo {task.get('repo','.')}{warn}")
     out.append(f"  artifacts: {run.dir}")
     return out

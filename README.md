@@ -55,6 +55,7 @@ sembl-stack doctor               # preflight: is the environment ready for this 
 sembl-stack loop task.yaml       # run the loop (plan → execute → gate → retry-on-BLOCK)
 sembl-stack runs                 # list runs (status, attempts, latency)
 sembl-stack runs <id>            # inspect one: per-attempt verdicts, reasons, latency
+sembl-stack apply <id>           # apply the accepted patch to the source repo
 sembl-stack dash                 # live TUI dashboard  (pip install "sembl-stack[tui]")
 ```
 
@@ -69,6 +70,11 @@ sembl-stack dash                 # live TUI dashboard  (pip install "sembl-stack
 `doctor` is config-aware — it only requires the layers your config actually selects (it
 won't ask for `claude` when `execute: mock`) and prints an actionable hint for anything
 missing. Optional pieces (langgraph, MCP) degrade to warnings, not failures.
+
+`loop` writes a complete run record under `.sembl/runs/<id>/`: the final `change.json`
+patch, verdicts, reasons, attempts, and timings. `runs <id>` is the inspection page;
+`apply <id>` validates the final patch with `git apply --check` and applies it to the
+source repo. A final `WARN` requires `--allow-warn`; `BLOCK` is never applied.
 
 ```bash
 sembl-stack init --preset full-loop   # or just-gate | gate+sandbox

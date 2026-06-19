@@ -242,13 +242,15 @@ def run(cfg: StackConfig, task: Task) -> LoopResult:
         sandbox.close()
     tracer.flush()
 
-    # persist the final verdict, a trace, and the run status
+    # Persist the final accepted change under a stable name, then the final verdict, a
+    # trace, and the run status. Per-attempt artifacts remain as change-1/verdict-1...
     verdict = final["verdict"]
+    run_rec.put(final["result"], name="change")
     run_rec.put(verdict)
     run_rec.put(Trace(steps=[{"attempt": a, "status": s} for a, s in final["history"]]))
     log = run_rec.manifest().get("attempts_log", [])             # C1.3 per-attempt metrics
     total_latency_s = round(sum(e.get("latency_s", 0) for e in log), 3)
-    run_rec.set_status("PASS" if verdict.status in ("PASS", "WARN") else "BLOCK",
+    run_rec.set_status(verdict.status,
                        attempts=final["attempt"], engine=engine,
                        total_latency_s=total_latency_s)
 
