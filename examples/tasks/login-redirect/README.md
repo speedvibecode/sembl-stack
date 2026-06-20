@@ -1,7 +1,7 @@
 # Example task: login-redirect
 
 A throwaway target repo + a Spec Kit-style `tasks.md` and `bounds.json`, used to drive
-the short loop. The L4 worktree sandbox needs `repo/` to be a git repo, so initialize
+the short loop. The L4 clone sandbox needs `repo/` to be a git repo, so initialize
 it once:
 
 ```bash

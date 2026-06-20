@@ -6,6 +6,10 @@
 > Phase-1 proofs (live OpenCode loop PASS + the WITH-vs-WITHOUT-Sembl test) to land first,
 > and the decision gates at the bottom to clear. See PLATFORM-MAP §9 and the NEXT list in
 > the sembl handoff.
+>
+> **Update 2026-06-20:** `codebase-memory-mcp` is now installed locally and used
+> opportunistically as a review/indexing aid. That does **not** promote this hypothesis —
+> it is still parked, and the MCP is not a stack dependency or a committed adapter.
 
 ---
 

@@ -1,8 +1,8 @@
 # The swappable-layer config. One line per layer — change the value, not the code.
 layers:
   spec: sembl          # L2 bounds engine (ours). swap: kiro
-  execute: mock        # L3 executor.  swap: opencode | aider | claude-code
-  sandbox: worktree    # L4 sandbox.    swap: e2b | daytona
+  execute: mock        # L3 executor.  swap: opencode | aider | claude
+  sandbox: worktree    # L4 sandbox: a disposable local clone (name is a legacy alias). swap: e2b | daytona
   verify: sembl        # L5 gate (ours).
 
 # How each layer is reached. "mcp" dogfoods Sembl's MCP server; "cli" is the

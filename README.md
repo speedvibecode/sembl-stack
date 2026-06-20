@@ -23,10 +23,10 @@ interface (the *no-parasite rule* at platform scale).
 | Layer | Job | v0 adapter | Swap-in candidates | Own? |
 |-------|-----|------------|--------------------|------|
 | **L0 Protocol** | every layer speaks MCP | `mcp` stdio transport | A2A | **own contract** |
-| **L1 Repo intel** | understand before editing | *(skipped in short loop)* | Graphify, code-review-graph, GitNexus | consume |
+| **L1 Repo intel** | understand before editing | *(opt-in: `bounds --expand`)* | symgraph, codegraph, code-review-graph | consume |
 | **L2 Spec** | intent → governed bounds | `sembl` (bounds engine) | Kiro | **own** |
-| **L3 Execute** | write the diff | `mock`, `opencode` | Aider, OpenHands, Claude Code/Codex | consume |
-| **L4 Sandbox** | contain the change | `worktree` | E2B, Daytona | consume |
+| **L3 Execute** | write the diff | `mock`, `opencode`, `claude`, `aider` | OpenHands, Codex | consume |
+| **L4 Sandbox** | contain the change | `clone` (disposable; alias `worktree`) | E2B, Daytona | consume |
 | **L5 Verify** | gate the diff | `sembl` (verify_change) | Semgrep, SonarQube + Sembl | **own** |
 | **L6 Orchestrate+trace** | loop, retry, observe | LangGraph + Langfuse | CrewAI, Temporal, MLflow | consume |
 
@@ -35,8 +35,8 @@ interface (the *no-parasite rule* at platform scale).
 ```
 task + spec
   → L2  bounds_from_spec        (sembl, over MCP)
-  → L4  open sandbox            (git worktree)
-  → L3  execute → diff+report   (mock / opencode)
+  → L4  open sandbox            (disposable clone)
+  → L3  execute → diff+report   (configured executor)
   → L5  verify_change → verdict (sembl, over MCP)
   → BLOCK & attempts left? feed reasons back to L3 and retry
   → PASS/WARN: accept

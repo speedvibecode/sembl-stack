@@ -4,13 +4,18 @@
 > are the basis we execute on; **[OPEN]** items need an owner call. This doc subordinates to
 > `PLATFORM-MAP.md` (the architecture) and inherits its guardrails. It exists to keep the
 > build honest: every milestone is gated by evidence, not vibes.
+>
+> **Update 2026-06-20:** several items below this baseline have since landed — the `run
+> inspect`/`apply` workflow exists, failure/cost/latency hardening was added, and the Aider
+> and Claude L3 adapters are wired and pushed. Where older sections describe those as
+> "remaining," treat them as historical, not current source of truth.
 
 ---
 
 ## 0. Where we are (the honest baseline)
 
 The short loop is **proven live** (2026-06-17): a real Claude Code agent built a playable
-Snake game end-to-end — Spec Kit `tasks.md` → L2 Sembl bounds → L3 agent → L4 worktree →
+Snake game end-to-end — Spec Kit `tasks.md` → L2 Sembl bounds → L3 agent → L4 clone →
 L5 Sembl gate → LangGraph — PASS; a second feature PASS in-bounds; a rogue diff BLOCKed on
 all claim-vs-reality checks. See the handoff + [[sembl-stack-platform]].
 
