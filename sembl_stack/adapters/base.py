@@ -66,8 +66,13 @@ def run_executor(cmd: list[str], cwd: str, timeout: int, **run_kwargs):
     the gate stage can convert it to a BLOCK rather than a crash.
     """
     try:
+        # encoding/errors explicit: agents emit UTF-8 (box-drawing, emoji, ✓). The default
+        # text=True decodes with the locale codec (cp1252 on Windows), which crashes the
+        # stdout reader thread mid-run and silently loses the output. Decode as UTF-8 and
+        # replace undecodable bytes so capture never aborts the loop.
         proc = subprocess.run(
-            cmd, cwd=cwd, capture_output=True, text=True, timeout=timeout, **run_kwargs)
+            cmd, cwd=cwd, capture_output=True, text=True, timeout=timeout,
+            encoding="utf-8", errors="replace", **run_kwargs)
         return proc.returncode, proc.stdout or "", proc.stderr or "", False
     except subprocess.TimeoutExpired as exc:
         out, err = exc.stdout or "", exc.stderr or ""

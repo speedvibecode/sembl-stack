@@ -32,6 +32,12 @@ class OpenCodeExecutor:
                 "L3: `opencode` not found on PATH. Install it, or set execute: mock.")
 
         prompt = self._prompt(task, bounds, feedback)
+        # Flatten newlines to spaces: the prompt is passed as a single argv, and through
+        # the Windows `cmd /c` shim an embedded newline truncates the argument (cmd reads
+        # it as end-of-line) — opencode would receive only the first line of a multi-line
+        # task. Joining with spaces preserves every word; newlines aren't load-bearing in
+        # an instruction.
+        prompt = " ".join(prompt.splitlines())
         # --dangerously-skip-permissions: headless `opencode run` otherwise blocks on an
         # interactive approval prompt for every file write. It is safe here because the
         # agent runs inside a disposable git-worktree sandbox (the cage, not the repo) —
@@ -40,7 +46,13 @@ class OpenCodeExecutor:
         # wants a lean, deterministic agent driven only by the task + bounds we hand it —
         # not whatever happens to be in the operator's personal opencode config. It also
         # shrinks the request (smaller/faster, less prone to free-tier queueing).
-        cmd = launcher + ["run", "--pure", "--dangerously-skip-permissions", prompt]
+        # --dir: pin opencode's working directory to the sandbox clone explicitly.
+        # opencode resolves its project root via its own logic, NOT the inherited cwd —
+        # on Windows (launched through the `.cmd` shim) that let it escape the sandbox and
+        # edit the *source* repo, leaving the clone's diff empty (a false BLOCK). Passing
+        # --dir nails it to the disposable clone, which is the whole point of the cage.
+        cmd = launcher + ["run", "--pure", "--dangerously-skip-permissions",
+                          "--dir", sandbox.workdir, prompt]
         if self.model:
             cmd += ["--model", self.model]
         rc, out, err, timed_out = run_executor(

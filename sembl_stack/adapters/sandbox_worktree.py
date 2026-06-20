@@ -38,11 +38,15 @@ class _Clone:
 
     def diff(self) -> str:
         # Stage everything (incl. new/untracked files) and diff against the clone's HEAD.
+        # encoding/errors explicit: a diff can carry UTF-8 (non-ASCII source, filenames),
+        # which the default locale codec (cp1252 on Windows) fails to decode — losing the
+        # diff and producing a false "empty diff" BLOCK.
         subprocess.run(
-            ["git", "add", "-A"], cwd=self.workdir, capture_output=True, text=True)
+            ["git", "add", "-A"], cwd=self.workdir, capture_output=True, text=True,
+            encoding="utf-8", errors="replace")
         proc = subprocess.run(
             ["git", "diff", "--cached"], cwd=self.workdir,
-            capture_output=True, text=True)
+            capture_output=True, text=True, encoding="utf-8", errors="replace")
         return proc.stdout
 
     def close(self) -> None:

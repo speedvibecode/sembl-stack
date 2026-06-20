@@ -12,13 +12,15 @@ license = { text = "MIT" }
 dependencies = [
   "click>=8.1",
   "pyyaml>=6.0",
+  "langgraph>=0.2",   # L6 orchestrator — the real retry StateGraph engine. Core so the
+                      # default install runs it, not the built-in fallback runner.
 ]
 
 [project.optional-dependencies]
 # The gate (L5) + spec engine (L2). Reached over MCP, but the CLI fallback uses this.
 gate = ["sembl>=0.1.19"]
 mcp = ["mcp>=1.0"]
-orchestrate = ["langgraph>=0.2"]
+orchestrate = ["langgraph>=0.2"]   # now a core dep; kept for back-compat / explicitness
 trace = ["langfuse>=2.0"]
 tui = ["textual>=0.50"]              # the O6 run dashboard (`sembl-stack dash`)
 # Everything, for the full reference factory.
