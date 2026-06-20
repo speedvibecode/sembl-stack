@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "sembl-stack"
-version = "0.0.1"
+version = "0.1.0"
 description = "An open, swappable spec-driven coding factory: Spec Kit plans, an agent writes, a sandbox contains, Sembl gates."
 readme = "README.md"
 requires-python = ">=3.10"
