@@ -10,6 +10,7 @@ installs. Every node is wrapped in a Langfuse span via the tracer.
 """
 from __future__ import annotations
 
+import subprocess
 import time
 from dataclasses import dataclass, field
 from typing import Any, TypedDict
@@ -122,6 +123,64 @@ def _maybe_expand(cfg: StackConfig, task: Task, bounds, tracer) -> None:
         min_strength=opts.get("min_strength", 0), max_fraction=opts.get("max_fraction", 0.4))
 
 
+# --- L4 isolation guard (defense-in-depth) -----------------------------------
+#
+# The sandbox (L4) clones the repo so the executor (L3) edits ONLY a disposable copy; the
+# gate verifies that copy's diff. But a swapped-in executor can ignore the cage and edit the
+# SOURCE tree instead (this happened live 2026-06-20: `opencode` ignored the inherited cwd
+# and wrote into the source repo until `--dir <sandbox.workdir>` was passed, commit 4a76163).
+# That leak was caught only by eye. These helpers assert — cheaply, once before and once
+# after the run — that the source working tree is left untouched, so a future regression
+# fails LOUD (forced BLOCK) instead of slipping through.
+
+_STORE_PREFIX = ".sembl/"          # the run store writes here BY DESIGN; never a breach
+
+
+def _source_tree_status(repo: str) -> set[str] | None:
+    """Snapshot the source repo's dirty working tree, EXCLUDING the `.sembl/` run store.
+
+    Returns the set of `git status --porcelain` lines for paths outside `.sembl/` (which
+    `store.py` writes into the source repo on every run, by design). Returns None — so the
+    caller skips the guard gracefully — when `repo` is not a git repo or git is unavailable.
+    """
+    try:
+        proc = subprocess.run(
+            ["git", "status", "--porcelain"], cwd=repo,
+            capture_output=True, text=True, encoding="utf-8", errors="replace")
+    except (OSError, ValueError):
+        return None                                  # git missing / bad path: can't guard
+    if proc.returncode != 0:
+        return None                                  # not a git repo: nothing to guard
+    lines: set[str] = set()
+    for line in proc.stdout.splitlines():
+        if not line.strip():
+            continue
+        path = line[3:].strip()                      # porcelain: "XY <path>"
+        if " -> " in path:                           # a rename: "old -> new"
+            path = path.split(" -> ", 1)[1]
+        path = path.strip().strip('"')
+        if path == _STORE_PREFIX.rstrip("/") or path.startswith(_STORE_PREFIX):
+            continue                                 # run-store writes are expected
+        lines.add(line)
+    return lines
+
+
+def _isolation_breach(before: set[str] | None, after: set[str] | None) -> str | None:
+    """A human reason if the source tree changed during the run (the cage leaked), else None.
+
+    `before`/`after` are `_source_tree_status` snapshots (or None when unguardable). Any
+    difference outside `.sembl/` means the executor wrote into the SOURCE repo instead of the
+    disposable clone.
+    """
+    if before is None or after is None or before == after:
+        return None
+    paths = sorted({line[3:].strip().split(" -> ")[-1].strip().strip('"')
+                    for line in (before ^ after)})
+    shown = ", ".join(paths[:5]) + (" …" if len(paths) > 5 else "")
+    return ("sandbox isolation breach: the executor modified the source repo "
+            f"(unexpected working-tree changes outside {_STORE_PREFIX}: {shown})")
+
+
 def _nodes(cfg: StackConfig, task: Task, tracer, run):
     def plan(state: dict) -> dict:
         with tracer.span("L2.plan"):
@@ -228,6 +287,8 @@ def _nodes(cfg: StackConfig, task: Task, tracer, run):
 def run(cfg: StackConfig, task: Task) -> LoopResult:
     tracer = get_tracer(cfg.langfuse)
     run_rec = RunStore(task.repo).new_run(task)
+    # L4 isolation guard: snapshot the source tree BEFORE any sandbox/executor runs.
+    tree_before = _source_tree_status(task.repo)
     plan, execute, verify, route = _nodes(cfg, task, tracer, run_rec)
     init = {"attempt": 0, "feedback": None, "history": []}
 
@@ -242,9 +303,20 @@ def run(cfg: StackConfig, task: Task) -> LoopResult:
         sandbox.close()
     tracer.flush()
 
+    # L4 isolation guard: re-snapshot the source tree now that the run is over. If it
+    # changed (outside .sembl/), the executor escaped the sandbox and edited the SOURCE repo
+    # — a containment breach the gate can't see. Fail LOUD: force the final verdict to BLOCK
+    # so the breach is never mistaken for a clean PASS/WARN.
+    verdict = final["verdict"]
+    breach = _isolation_breach(tree_before, _source_tree_status(task.repo))
+    if breach is not None:
+        verdict = Verdict(
+            status="BLOCK",
+            reasons=[breach, *getattr(verdict, "reasons", [])],
+            raw={**(getattr(verdict, "raw", {}) or {}), "isolation_breach": True})
+
     # Persist the final accepted change under a stable name, then the final verdict, a
     # trace, and the run status. Per-attempt artifacts remain as change-1/verdict-1...
-    verdict = final["verdict"]
     run_rec.put(final["result"], name="change")
     run_rec.put(verdict)
     run_rec.put(Trace(steps=[{"attempt": a, "status": s} for a, s in final["history"]]))
