@@ -15,6 +15,7 @@ from ..artifacts import (  # noqa: F401  (re-exported for adapters)
     Context,
     Delivery,
     ExecutionResult,
+    MergeRecord,
     ReconciliationReport,
     SpecGraph,
     Task,
@@ -118,6 +119,13 @@ class VerifyAdapter(Protocol):       # L5: Change+Bounds -> Verdict
 @runtime_checkable
 class ReconcileAdapter(Protocol):    # L5.5: SpecGraph+CodeGraph -> report
     def reconcile(self, spec_graph: SpecGraph, code_graph: dict) -> ReconciliationReport:
+        ...
+
+
+@runtime_checkable
+class MergeAdapter(Protocol):        # L6.5: Verdict(PASS) -> MergeRecord
+    def merge(self, repo: str, *, into: str = "main", source: str = "HEAD",
+              no_ff: bool = True, message: str | None = None) -> MergeRecord:
         ...
 
 

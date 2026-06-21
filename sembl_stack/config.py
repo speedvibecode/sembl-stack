@@ -11,7 +11,7 @@ from . import registry
 DEFAULTS = {
     "layers": {"spec": "sembl", "execute": "mock",
                "sandbox": "worktree", "verify": "sembl", "context": "none",
-               "deploy": "vercel", "postdeploy": "http"},
+               "merge": "git", "deploy": "vercel", "postdeploy": "http"},
     "transport": {"spec": "mcp", "verify": "mcp",
                   "mcp_server": ["uvx", "--from", "sembl[mcp]", "sembl-mcp"]},
     "loop": {"max_attempts": 3, "strict": True},
@@ -26,6 +26,7 @@ class StackConfig:
     sandbox: object
     verify: object
     context: object = None
+    merge: object = None
     deploy: object = None
     postdeploy: object = None
     max_attempts: int = 3
@@ -62,6 +63,8 @@ def load(path: str | None) -> StackConfig:
                               opts.get("verify")),
         context=registry.build("context", layers.get("context", "none"), "cli", server,
                                opts.get("context")),
+        merge=registry.build("merge", layers.get("merge", "git"), "cli", server,
+                             opts.get("merge")),
         deploy=registry.build("deploy", layers.get("deploy", "vercel"), "cli", server,
                               opts.get("deploy")),
         postdeploy=registry.build("postdeploy", layers.get("postdeploy", "http"), "cli",

@@ -7,6 +7,7 @@ custom step between two stages (read the upstream artifact, write the downstream
     sembl-stack bounds  --task t.yaml                 --out bounds.json
     sembl-stack specgraph --task t.yaml --bounds b.json --out specgraph.json
     sembl-stack reconcile --specgraph specgraph.json --codegraph codegraph.json
+    sembl-stack merge --verdict verdict.json --out merge_record.json
     sembl-stack deploy --verdict verdict.json --out delivery.json
     sembl-stack postdeploy --delivery delivery.json --out prod-verdict.json
     sembl-stack execute --task t.yaml --bounds b.json --out change.json
@@ -179,6 +180,34 @@ def reconcile(specgraph_path, codegraph_path, out):
     spec_graph = _read_specgraph(specgraph_path)
     code_graph = json.loads(Path(codegraph_path).read_text(encoding="utf-8-sig"))
     _emit(reconcile_spec_code(spec_graph, code_graph), out)
+
+
+@main.command()
+@click.option("--repo", default=".")
+@click.option("--verdict", "verdict_path", required=True,
+              type=click.Path(exists=True, dir_okay=False),
+              help="Final gate Verdict artifact. Must be PASS unless --allow-warn.")
+@click.option("--into", default="main", show_default=True, help="Target branch to merge into.")
+@click.option("--source", default="HEAD", show_default=True, help="Ref to merge.")
+@click.option("--allow-warn", is_flag=True,
+              help="Allow merging a WARN verdict. BLOCK is never merged.")
+@click.option("--no-ff/--ff", default=True, help="Create a merge commit (default) vs fast-forward.")
+@click.option("--config", "config_path", default="sembl.stack.yaml")
+@click.option("--out", default=None, help="Write the MergeRecord artifact here.")
+def merge(repo, verdict_path, into, source, allow_warn, no_ff, config_path, out):
+    """L6.5: Verdict(PASS) -> MergeRecord. Gated merge into the target branch."""
+    verdict = _read_verdict(verdict_path)
+    if verdict.status == "BLOCK":
+        raise click.UsageError("refusing to merge a BLOCK verdict")
+    if verdict.status == "WARN" and not allow_warn:
+        raise click.UsageError("refusing to merge WARN without --allow-warn")
+    if verdict.status not in ("PASS", "WARN"):
+        raise click.UsageError(f"unsupported verdict status: {verdict.status}")
+
+    cfg = load(config_path if Path(config_path).is_file() else None)
+    record = cfg.merge.merge(repo, into=into, source=source, no_ff=no_ff)
+    _emit(record, out)
+    raise SystemExit(0 if record.status == "merged" else 1)
 
 
 @main.command()
@@ -376,7 +405,7 @@ def doctor(config_path):
 @main.command()
 def layers():
     """List the available adapters per layer."""
-    for layer in ("spec", "execute", "sandbox", "verify", "context", "deploy", "postdeploy"):
+    for layer in ("spec", "execute", "sandbox", "verify", "context", "merge", "deploy", "postdeploy"):
         click.echo(f"{layer:9}: {', '.join(registry.names(layer))}")
 
 

@@ -142,12 +142,23 @@ class Delivery(_Serializable):
     data: dict = field(default_factory=dict)
 
 
+@dataclass
+class MergeRecord(_Serializable):
+    """Gated-merge record (L6.5). PASS/WARN -> merged; BLOCK -> held."""
+    KIND = "merge_record"
+    target_branch: str = ""
+    source_ref: str = ""
+    commit: str | None = None          # merge/HEAD sha when status == "merged"
+    status: str = "pending"            # merged | held | failed
+    data: dict = field(default_factory=dict)
+
+
 # ExecutionResult is the legacy name for Change; kept so existing adapters import cleanly.
 ExecutionResult = Change
 
 KINDS = {c.KIND: c for c in (
     Task, Context, SpecGraph, Bounds, Change, Verdict, ReconciliationReport,
-    Trace, Delivery)}
+    Trace, Delivery, MergeRecord)}
 
 
 def from_dict(d: dict):
