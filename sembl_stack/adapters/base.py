@@ -17,6 +17,7 @@ from ..artifacts import (  # noqa: F401  (re-exported for adapters)
     ExecutionResult,
     MergeRecord,
     ReconciliationReport,
+    ReviewReport,
     SpecGraph,
     Task,
     Trace,
@@ -143,4 +144,10 @@ class DeployAdapter(Protocol):       # L7: Verdict(PASS) -> Delivery; rollback r
 class PostDeployAdapter(Protocol):   # L8: Delivery -> Verdict
     def verify(self, delivery: Delivery, *, health_path: str = "/",
                timeout_s: float = 10.0) -> Verdict:
+        ...
+
+
+@runtime_checkable
+class ReviewAdapter(Protocol):       # L5.5 quality: a diff -> ReviewReport (advisory)
+    def review(self, diff: str, *, reviewer_hint: str = "") -> ReviewReport:
         ...

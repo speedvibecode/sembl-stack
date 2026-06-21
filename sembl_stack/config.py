@@ -11,7 +11,7 @@ from . import registry
 DEFAULTS = {
     "layers": {"spec": "sembl", "execute": "mock",
                "sandbox": "worktree", "verify": "sembl", "context": "none",
-               "codegraph": "cbm",
+               "codegraph": "cbm", "review": "mock",
                "merge": "git", "deploy": "vercel", "postdeploy": "http"},
     "transport": {"spec": "mcp", "verify": "mcp",
                   "mcp_server": ["uvx", "--from", "sembl[mcp]", "sembl-mcp"]},
@@ -28,6 +28,7 @@ class StackConfig:
     verify: object
     context: object = None
     codegraph: object = None
+    review: object = None
     merge: object = None
     deploy: object = None
     postdeploy: object = None
@@ -67,6 +68,8 @@ def load(path: str | None) -> StackConfig:
                                opts.get("context")),
         codegraph=registry.build("codegraph", layers.get("codegraph", "cbm"), "cli", server,
                                  opts.get("codegraph")),
+        review=registry.build("review", layers.get("review", "mock"), "cli", server,
+                              opts.get("review")),
         merge=registry.build("merge", layers.get("merge", "git"), "cli", server,
                              opts.get("merge")),
         deploy=registry.build("deploy", layers.get("deploy", "vercel"), "cli", server,

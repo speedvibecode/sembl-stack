@@ -1,0 +1,20 @@
+{
+  "name": "14-quality-defect-passes-gate",
+  "kind": "feature",
+  "label": "clean",
+  "strict": true,
+  "expect": "PASS",
+  "quality": "defect",
+  "task": "Add a service that loads each user's orders for the dashboard.",
+  "bounds": {
+    "editable_paths": ["src/orders.js"],
+    "forbidden_areas": ["infra/"],
+    "churn_budget": {"max_files": 2}
+  },
+  "diff": "diff --git a/src/orders.js b/src/orders.js\nnew file mode 100644\n--- /dev/null\n+++ b/src/orders.js\n@@ -0,0 +1,6 @@\n+export async function loadDashboard(users) {\n+  const out = [];\n+  for (const u of users) {\n+    out.push(await db.query('SELECT * FROM orders WHERE user_id = ' + u.id));\n+  }\n+  return out;\n+}\n",
+  "report": {
+    "files_modified": ["src/orders.js"],
+    "tests_passed": true,
+    "output": "dashboard loads orders: OK"
+  }
+}

@@ -17,6 +17,8 @@ from .adapters.sandbox_worktree import WorktreeSandbox
 from .adapters.spec_sembl import SemblSpecAdapter
 from .adapters.verify_sembl import SemblVerifyAdapter
 from .adapters.codegraph_cbm import CbmCodeGraph
+from .adapters.review_mock import MockReviewAdapter
+from .adapters.review_coderabbit import CodeRabbitReviewAdapter
 from .contextgraph import SymgraphGraph
 
 # layer -> { adapter name -> factory(transport, mcp_server, opts) }
@@ -51,6 +53,11 @@ _REGISTRY: dict[str, dict[str, object]] = {
             binary=o.get("binary", "codebase-memory-mcp"),
             timeout=o.get("timeout", 600), limit=o.get("limit", 5000)),
         "none": lambda t, s, o: None,
+    },
+    "review": {
+        "mock": lambda t, s, o: MockReviewAdapter(),
+        "coderabbit": lambda t, s, o: CodeRabbitReviewAdapter(
+            binary=o.get("binary", "coderabbit"), timeout=o.get("timeout", 600)),
     },
     "merge": {
         "git": lambda t, s, o: GitMergeAdapter(timeout=o.get("timeout", 300)),

@@ -72,15 +72,17 @@ repo) → TARGET (product, plane B)`, everything speaking **MCP** at the hub.
 | L4 Sandbox | contain | `Change → Change` | consume | ✅ disposable clone (alias worktree) |
 | L5 Verify (gate) | gate the diff | `Change+Bounds → Verdict` | **OWN gate** | ✅ green, sembl 0.1.20 |
 | L5.5 Reconcile (per-PR) | spec↔code drift | `SpecGraph+CodeGraph → Report` | INTEGRATE (advisory) | ✅ **live: `reconcile --live` drives a real CBM index** (landed 2026-06-22); flagship live-proof pending owner run |
-| L5.5 Quality review | code-quality signal | PR → findings | INTEGRATE | ❌ **CodeRabbit — needs account** |
+| L5.5 Quality review | code-quality signal | diff → findings | INTEGRATE | 🟡 **prep complete (mock + shell + 2×2, landed 2026-06-22)**; real CodeRabbit wiring deferred to ~2026-07-02 (owner on another project + vacation) |
 | L6 Orchestrate+observe | loop/trace | wiring + `*→Trace` | consume | ✅ LangGraph + retry-on-BLOCK |
 | L6.5 Merge | gated merge | `Verdict(PASS) → MergeRecord` | OWN stage | ✅ **landed 2026-06-21** (PASS merges, BLOCK refused) |
 | L7 Deploy | ship | `Verdict(PASS) → Delivery` | INTEGRATE (own stage, delegate mechanism) | ✅ Vercel; flagship live |
 | L8 Verify-in-prod | gate prod | `Delivery → Verdict` | **OWN gate** | ✅ health/payload gate + **rollback trigger** (landed 2026-06-21) |
 
-**Depth-1 spine = 11/11** (all stages wired). Remaining: **L5.5 quality review / CodeRabbit**
-(needs account; the only un-wired stage) + the flagship live-proof of reconcile-live (owner run).
-*(L8 rollback closed 2026-06-21; reconcile-live closed 2026-06-22.)*
+**Depth-1 spine = 11/11** (all stages wired). The L5.5 quality slot is **prepped to swap-ready**
+(mock reviewer + CodeRabbit subprocess shell + planted case 14 + 2×2 eval, all green) — only the
+real CodeRabbit CLI wiring remains, **deliberately deferred to ~2026-07-02** (owner takes up
+another project, then vacation). Also pending: the flagship live-proof of reconcile-live (owner run).
+*(L8 rollback closed 2026-06-21; reconcile-live closed 2026-06-22; CodeRabbit prep closed 2026-06-22.)*
 
 ## 4. The metric (O3) and current evidence
 Full computable spec: `eval-metric-O3.md`. One-line claim: *with the gate in the loop, fewer bad
@@ -176,15 +178,21 @@ flagship FIRST**; fan out to ~50 adapters only AFTER. Evidence ✅ done; spine 9
 4. **TUI Phase 1** — CBM index trigger, reconcile panel, live deploy/postdeploy panels, MurphyScan
    readiness screen.
 
-**Track 3 — prep the CodeRabbit trial BEFORE opening the 14-day account (no account yet):**
-5. **L5.5 review-adapter shell** — invoke CodeRabbit on a PR, ingest findings as a signal
-   artifact (INTEGRATE); test against a mock.
-6. **Planted quality-regression PR** — the quality-axis analog of corpus case 13: a change that
-   **passes the Sembl gate** (in-scope, evidenced, low-churn) but has a real code-quality defect
-   (N+1, missing `await`, unsafe input) CodeRabbit should catch.
-7. **The 2×2 eval + day-1 demo script** — Sembl catches the process/claim class; CodeRabbit the
-   quality class; each catches what the other misses ⇒ **complementary, not redundant.**
-   → *Only when 1–7 are done: open the CodeRabbit trial and spend all 14 days on the 2×2 proof.*
+**Track 3 — prep the CodeRabbit trial BEFORE opening the 14-day account — ✅ PREP DONE
+2026-06-22 (spec `SPEC-coderabbit-prep.md`, agy-built, reviewed + re-verified; 59 passed):**
+5. ✅ **L5.5 review-adapter shell** — `ReviewReport` artifact + `ReviewAdapter` protocol +
+   `MockReviewAdapter` (validated file-level N+1/unsafe detector) + `CodeRabbitReviewAdapter`
+   subprocess shell (PROVISIONAL, mock-tested, never run the real CLI) + `review` registry layer
+   (mock default) + advisory `review` CLI.
+6. ✅ **Planted quality-regression case 14** (`eval/corpus/14-quality-defect-passes-gate`) — the
+   quality-axis analog of case 13: **passes the Sembl gate** (in-scope, evidenced, low-churn) but
+   has a real N+1 defect the reviewer flags.
+7. ✅ **The 2×2 eval** (`eval/two_axis.py`) — verified **gate_only=6, quality_only=1, both=0** ⇒
+   each catches what the other misses, **complementary, not redundant.**
+   → *Items 5–7 done. Opening the CodeRabbit trial is **deliberately deferred to ~2026-07-02***
+   *(owner takes up another project first, then vacation). On day 1: swap the mock for the real*
+   *CLI (finalize the subcommand/JSON shape in `review_coderabbit.py`) and spend all 14 days on*
+   *the 2×2 proof. **Do NOT open the account before then.***
 
 **Track 4 — RSI-L1 readout (cheap, high-narrative):** per-executor iters-to-green + cost over the
 corpus → the "measured selection" artifact. Advances the north star's first rung.

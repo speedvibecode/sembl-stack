@@ -209,6 +209,18 @@ def reconcile(specgraph_path, codegraph_path, live, repo, config_path, out):
 
 
 @main.command()
+@click.option("--diff", "diff_path", required=True, type=click.Path(exists=True, dir_okay=False),
+              help="Unified diff / .patch to review.")
+@click.option("--config", "config_path", default="sembl.stack.yaml")
+@click.option("--out", default=None, help="Write the ReviewReport artifact here (else stdout).")
+def review(diff_path, config_path, out):
+    """L5.5 (quality): diff -> advisory ReviewReport (advisory, never a gate)."""
+    cfg = load(config_path if Path(config_path).is_file() else None)
+    diff = Path(diff_path).read_text(encoding="utf-8-sig")
+    _emit(cfg.review.review(diff), out)
+
+
+@main.command()
 @click.option("--repo", default=".")
 @click.option("--verdict", "verdict_path", required=True,
               type=click.Path(exists=True, dir_okay=False),
@@ -442,7 +454,7 @@ def doctor(config_path):
 @main.command()
 def layers():
     """List the available adapters per layer."""
-    for layer in ("spec", "execute", "sandbox", "verify", "context", "merge", "deploy", "postdeploy"):
+    for layer in ("spec", "execute", "sandbox", "verify", "context", "merge", "deploy", "postdeploy", "review"):
         click.echo(f"{layer:9}: {', '.join(registry.names(layer))}")
 
 

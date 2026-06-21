@@ -126,6 +126,16 @@ class ReconciliationReport(_Serializable):
 
 
 @dataclass
+class ReviewReport(_Serializable):
+    """Advisory code-quality review signal (L5.5). Never a gate verdict."""
+    KIND = "review_report"
+    reviewer: str = ""
+    status: str = "UNKNOWN"           # CLEAN | FINDINGS | UNKNOWN
+    findings: list[dict] = field(default_factory=list)  # {severity, kind, file, message}
+    data: dict = field(default_factory=dict)
+
+
+@dataclass
 class Trace(_Serializable):
     """Observability: the ordered steps of a run (L6)."""
     KIND = "trace"
@@ -158,7 +168,7 @@ ExecutionResult = Change
 
 KINDS = {c.KIND: c for c in (
     Task, Context, SpecGraph, Bounds, Change, Verdict, ReconciliationReport,
-    Trace, Delivery, MergeRecord)}
+    ReviewReport, Trace, Delivery, MergeRecord)}
 
 
 def from_dict(d: dict):
