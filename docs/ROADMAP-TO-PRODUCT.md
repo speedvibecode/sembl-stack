@@ -137,6 +137,9 @@ EVIDENCE-FIRST (anti-trap — nothing fans out until the number exists):
         ↓
   C4 stranger-runnable surface (TUI + presets) + private beta (3–5 partners), woven in
         ↓
+  MURPHYSCAN launch-readiness gate (S12) — the 13-layer P0–P3 production audit must be
+  green on the flagship before public launch, and re-run before each prod release
+        ↓
   A — public launch: the full through-deploy, beats-prompt-chains, ~50-tool product
         ↓
   demand-pulled: 100-tool community catalog, hosted/web surface, process-RSI L2–L4
@@ -182,6 +185,7 @@ isn't us. **Evidence + the depth-1 spine come before breadth, always.**
 | S9 | Per-PR SpecGraph↔CodeGraph reconciliation agent (advisory, human-reconciled, NOT the gate) | **[LOCKED 2026-06-20 PM]** — needs `SpecGraph` artifact |
 | S10 | O5 shape for the flagship: local-creds-first vs. full secret/permission model | **[RESOLVED 2026-06-20 PM]** — local-creds-first; full model is a separate pre-public-launch workstream |
 | S11 | Flagship app for the depth-1 through-deploy demo | **[RESOLVED 2026-06-20 PM]** — **feedback board** (auth + DB writes/reads) on Vercel+Supabase |
+| S12 | MurphyScan = launch-readiness gate (3rd axis: operational/production readiness, distinct from Sembl=process-correctness and CodeRabbit=code-quality) | **[LOCKED 2026-06-21]** — standing pre-deploy/pre-release audit (13-layer P0–P3); must be green on the flagship before public launch (Track A); already earned it (caught the auth P0). NOT in the per-change retry loop. |
 
 ## PROGRESS LOG
 
