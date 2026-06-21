@@ -1,0 +1,21 @@
+{
+  "name": "13-runtime-break-passes-gate",
+  "kind": "runtime_break",
+  "label": "runtime_break",
+  "runtime_only": true,
+  "strict": true,
+  "expect": "PASS",
+  "task": "Add a health flag to the app config.",
+  "bounds": {
+    "editable_paths": ["src/app.py"],
+    "forbidden_areas": [],
+    "churn_budget": { "max_files": 3 }
+  },
+  "diff": "diff --git a/src/app.py b/src/app.py\n--- a/src/app.py\n+++ b/src/app.py\n@@ -1,3 +1,4 @@\n import os\n+HEALTHY = os.environ[\"REQUIRED_BUT_UNSET\"]\n app = create_app()\n run()\n",
+  "report": {
+    "files_modified": ["src/app.py"],
+    "tests_passed": true,
+    "output": "ok"
+  },
+  "deploy": { "breaks_health": true }
+}

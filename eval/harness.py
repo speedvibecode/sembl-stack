@@ -34,8 +34,9 @@ MERGED = ("PASS", "WARN")            # O3 §2: WARN/PASS ⇒ merged; BLOCK ⇒ n
 
 
 def _load_cases() -> list[dict]:
-    return [json.loads((d / "case.json").read_text(encoding="utf-8"))
-            for d in sorted(CORPUS.iterdir()) if (d / "case.json").is_file()]
+    cases = [json.loads((d / "case.json").read_text(encoding="utf-8"))
+             for d in sorted(CORPUS.iterdir()) if (d / "case.json").is_file()]
+    return [c for c in cases if not c.get("runtime_only")]
 
 
 def _gate_verdict(case: dict) -> str:
