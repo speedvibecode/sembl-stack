@@ -185,6 +185,15 @@ isn't us. **Evidence + the depth-1 spine come before breadth, always.**
 
 ## PROGRESS LOG
 
+- **2026-06-21 (PM) — WS2 spine LIVE + reality reconciled.** Flagship feedback board deployed
+  to production (Vercel+Supabase): L7 deploy READY, L8 health gate PASS, 72 tests green
+  (branch `ws2-through-deploy-spine`). MurphyScan run: RLS/secrets solid; the magic-link auth
+  P0 blocker (missing PKCE `/auth/callback` + ssr middleware) was **FIXED** and verified live.
+  Verification pass corrected stale BUILD-PLAN assumptions: **WS1 harness + 12-case corpus
+  already exist** (re-ran green: **bad-merge 1.0→0.25 @ 0.0 false-alarm**) — remaining WS1 is
+  only the through-deploy extension; **C4 TUI/presets/doctor already exist**. Remaining to the
+  raised bar: through-deploy evidence, L5.5 review + L8 rollback wiring, WS4 breadth, full O5,
+  private beta. See `docs/BUILD-PLAN.md` STATUS UPDATE 2026-06-21.
 - **2026-06-20 (PM) — owner call: launch bar RAISED (S7–S9), §3/§4 re-sequenced.** See §1b.
   **Baseline refresh:** sembl **0.1.20 live on PyPI** (gate ignores Python bytecode/tool-caches
   as generated-class); **MiniMax-M3 via OpenCode is a 3rd live executor** on Windows (3 path

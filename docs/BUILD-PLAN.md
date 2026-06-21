@@ -29,6 +29,26 @@ MiniMax-M3/OpenCode — 3 live, hot-swappable) · L4 git-worktree sandbox · L5 
 (0.1.20) · L6 LangGraph orchestration + retry-on-BLOCK · C1 no-op/empty-diff BLOCK · run
 store `.sembl/runs/<id>/`.
 
+## STATUS UPDATE 2026-06-21 (PM) — the original draft below understated what exists
+A verification pass found several workstreams already built (from 2026-06-19/20). Corrections:
+- **WS1 IS LARGELY BUILT, not "not started".** `eval/build_corpus.py` + `eval/harness.py` +
+  a **12-case corpus** exist and run green: **bad-merge 1.0→0.25 WITH the gate, 0.0
+  false-alarms** (6/8 hard-BLOCK, 2 WARN-flagged; all 12 match `expect`). The **remaining**
+  WS1 work is the raised-bar delta only: **extend the WITH/WITHOUT comparison *through
+  deploy*** (add L7/L8 outcomes) and dress it as a public artifact. Do NOT rebuild the harness.
+- **WS2 spine is WIRED end-to-end, and LIVE.** `specgraph.py` builds the SpecGraph in the loop
+  plan node; `reconciliation.py`, `deploy_vercel.py` (L7), `postdeploy_http.py` (L8) are wired
+  as CLI commands + config layers (after the gate, not in the retry loop). Flagship deployed
+  live (L7 READY, L8 PASS, 72 tests). The MurphyScan auth blocker is **FIXED** (PKCE
+  `/auth/callback` + ssr `middleware.ts`, verified live: 307→`?auth_error=missing_code`).
+  **Remaining WS2:** L5.5 quality-review integration (CodeRabbit/codex), confirm/wire a merge
+  stage, L8 rollback trigger (O2), and make spine `postdeploy_http` assert payload not just
+  HTTP status.
+- **C4 EXISTS:** `tui.py`/`views.py` (`dash`), `presets.py` (just-gate/gate+sandbox/full-loop),
+  `doctor.py`, `init`/`runs` CLI. Remaining C4 = polish + recruit private beta.
+- Net: the gap to the raised bar is **narrower than this doc's WS sections imply** — mainly
+  (a) through-deploy evidence, (b) review+rollback wiring, (c) breadth (WS4), (d) full O5, (e) beta.
+
 ---
 
 ## Workstream 1 — Evidence harness (B1–B3) — BUILD FIRST
