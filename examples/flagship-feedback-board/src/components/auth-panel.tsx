@@ -31,7 +31,7 @@ export function AuthPanel({ configured, signedIn, email }: AuthPanelProps) {
     const { error } = await supabase.auth.signInWithOtp({
       email: nextEmail,
       options: {
-        emailRedirectTo: window.location.origin,
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
       },
     });
 
