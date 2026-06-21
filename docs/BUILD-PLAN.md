@@ -33,9 +33,16 @@ store `.sembl/runs/<id>/`.
 A verification pass found several workstreams already built (from 2026-06-19/20). Corrections:
 - **WS1 IS LARGELY BUILT, not "not started".** `eval/build_corpus.py` + `eval/harness.py` +
   a **12-case corpus** exist and run green: **bad-merge 1.0→0.25 WITH the gate, 0.0
-  false-alarms** (6/8 hard-BLOCK, 2 WARN-flagged; all 12 match `expect`). The **remaining**
-  WS1 work is the raised-bar delta only: **extend the WITH/WITHOUT comparison *through
-  deploy*** (add L7/L8 outcomes) and dress it as a public artifact. Do NOT rebuild the harness.
+  false-alarms** (6/8 hard-BLOCK, 2 WARN-flagged; all 12 match `expect`). Do NOT rebuild the harness.
+- **WS1 through-deploy delta DONE (2026-06-21).** `eval/through_deploy.py` + a 13th case
+  (`13-runtime-break-passes-gate`, `runtime_only`) extend the WITH/WITHOUT comparison *through
+  deploy*: a change that **PASSes the static gate but breaks at runtime** is caught by the L8
+  post-deploy gate and rolled back — the one failure class the static gate can't see. Funnel over
+  9 bad changes: blocked pre-deploy 6, rolled-back post-deploy 1, still-live 2 ⇒ **bad-live
+  1.0 → 0.222, false-alarm 0.0, 0 mismatches**. The static harness skips `runtime_only`, so the
+  published `1.0 → 0.25` is preserved. Spec pinned in `eval/SPEC-through-deploy.md`. Remaining WS1
+  = dress as a public artifact (the website job). Built by agy/Gemini-3.5-Flash from the pinned
+  spec, reviewed + re-verified locally (74 tests green).
 - **WS2 spine is WIRED end-to-end, and LIVE.** `specgraph.py` builds the SpecGraph in the loop
   plan node; `reconciliation.py`, `deploy_vercel.py` (L7), `postdeploy_http.py` (L8) are wired
   as CLI commands + config layers (after the gate, not in the retry loop). Flagship deployed
@@ -47,7 +54,21 @@ A verification pass found several workstreams already built (from 2026-06-19/20)
 - **C4 EXISTS:** `tui.py`/`views.py` (`dash`), `presets.py` (just-gate/gate+sandbox/full-loop),
   `doctor.py`, `init`/`runs` CLI. Remaining C4 = polish + recruit private beta.
 - Net: the gap to the raised bar is **narrower than this doc's WS sections imply** — mainly
-  (a) through-deploy evidence, (b) review+rollback wiring, (c) breadth (WS4), (d) full O5, (e) beta.
+  (a) ~~through-deploy evidence~~ DONE 2026-06-21, (b) review+rollback wiring, (c) breadth (WS4),
+  (d) full O5, (e) beta.
+
+## STANDING WORKFLOW GATES (owner decisions, 2026-06-21)
+- **MurphyScan is part of the workflow** (owner: "it is fantastic"). Run the `/murphyscan`
+  skill as a **standing pre-deploy / pre-release audit**: before any deploy-to-prod of the
+  flagship, and before each version bump. It is a launch-readiness *audit* (P0–P3 rulebook),
+  complementary to — not a replacement for — the deterministic Sembl gate. It already earned
+  its keep once (surfaced the broken PKCE auth blocker, now fixed).
+- **CodeRabbit (L5.5 quality review) — do NOT start the 14-day trial until we are ready to
+  squeeze it.** Readiness = (1) the merge stage is wired so a PR exists to review, and (2) a
+  deliberately-planted *quality* regression that the static Sembl gate ignores (so CodeRabbit
+  visibly catches what Sembl does not — proving they are **complementary**, not redundant; the
+  gate is process-correctness, CodeRabbit is code-quality). Prep that scaffold first; the trial
+  clock starts the day the account is created, not before.
 
 ---
 
