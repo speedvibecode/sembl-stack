@@ -16,6 +16,7 @@ from .adapters.postdeploy_http import HttpPostDeployGate
 from .adapters.sandbox_worktree import WorktreeSandbox
 from .adapters.spec_sembl import SemblSpecAdapter
 from .adapters.verify_sembl import SemblVerifyAdapter
+from .adapters.codegraph_cbm import CbmCodeGraph
 from .contextgraph import SymgraphGraph
 
 # layer -> { adapter name -> factory(transport, mcp_server, opts) }
@@ -43,6 +44,12 @@ _REGISTRY: dict[str, dict[str, object]] = {
     },
     "context": {                                          # L1 semantic graph (optional)
         "symgraph": lambda t, s, o: SymgraphGraph(timeout=o.get("timeout", 300)),
+        "none": lambda t, s, o: None,
+    },
+    "codegraph": {                                        # L5.5 code graph for reconcile
+        "cbm": lambda t, s, o: CbmCodeGraph(
+            binary=o.get("binary", "codebase-memory-mcp"),
+            timeout=o.get("timeout", 600), limit=o.get("limit", 5000)),
         "none": lambda t, s, o: None,
     },
     "merge": {

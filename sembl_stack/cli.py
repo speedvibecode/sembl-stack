@@ -170,15 +170,28 @@ def specgraph(task_file, repo, spec, text, bounds_path, out):
 @main.command()
 @click.option("--specgraph", "specgraph_path", required=True,
               type=click.Path(exists=True, dir_okay=False))
-@click.option("--codegraph", "codegraph_path", required=True,
+@click.option("--codegraph", "codegraph_path", default=None,
               type=click.Path(exists=True, dir_okay=False),
-              help="Code graph JSON, e.g. codebase-memory-mcp nodes/results output.")
+              help="Code graph JSON (hand-passed). Omit and pass --live to build it from CBM.")
+@click.option("--live", is_flag=True,
+              help="Build the code graph live from a real codebase-memory-mcp index.")
+@click.option("--repo", default=".", help="Repo to index/graph when --live.")
+@click.option("--config", "config_path", default="sembl.stack.yaml")
 @click.option("--out", default=None,
               help="Write the ReconciliationReport artifact here (else stdout).")
-def reconcile(specgraph_path, codegraph_path, out):
-    """L5.5: SpecGraph+CodeGraph -> advisory ReconciliationReport."""
+def reconcile(specgraph_path, codegraph_path, live, repo, config_path, out):
+    """L5.5: SpecGraph+CodeGraph -> advisory ReconciliationReport (advisory, never a gate)."""
     spec_graph = _read_specgraph(specgraph_path)
-    code_graph = json.loads(Path(codegraph_path).read_text(encoding="utf-8-sig"))
+    if live:
+        cfg = load(config_path if Path(config_path).is_file() else None)
+        if cfg.codegraph is None or not cfg.codegraph.available():
+            raise click.UsageError(
+                "--live needs a codegraph adapter (codebase-memory-mcp on PATH)")
+        code_graph = cfg.codegraph.code_graph(repo)
+    elif codegraph_path:
+        code_graph = json.loads(Path(codegraph_path).read_text(encoding="utf-8-sig"))
+    else:
+        raise click.UsageError("supply --codegraph <file> or --live")
     _emit(reconcile_spec_code(spec_graph, code_graph), out)
 
 
