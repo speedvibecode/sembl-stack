@@ -167,10 +167,12 @@ flagship FIRST**; fan out to ~50 adapters only AFTER. Evidence ✅ done; spine 9
    *Remaining:* the flagship live-proof run (owner, §7 of the spec) → hand the report to Claude.
 
 **Track 2 — the `sembl stack` TUI (parallel; agy-delegable):**
-3. **TUI Phase 0** (`docs/SPEC-tui-phase0.md`, to write) — bare-`sembl-stack` Textual app + stage
-   rail + New/Existing screen + `session.json` resume, wiring only already-headless stages.
-   *Acceptance:* app boots headless in CI, `session.json` round-trips, resume picks the latest
-   incomplete run, a stranger can run loop→gate→merge→deploy from the TUI.
+3. ~~**TUI Phase 0**~~ — ✅ **DONE 2026-06-22** (`docs/SPEC-tui-phase0.md`, commit `bc03beb`).
+   Bare `sembl-stack` launches a Textual wizard (New/Existing + stage rail) with `session.json`
+   resume over the run store; `session.py` (pure core, 6 committed tests) + `wizard.py` (pilot-
+   tested locally) + `invoke_without_command` wiring. Built+verified by Claude (kept per owner
+   decision; a from-scratch Textual app is the riskiest delegation). Committed suite 49 passed.
+   *Remaining:* owner TTY live-proof (relaunch resumes mid-rail).
 4. **TUI Phase 1** — CBM index trigger, reconcile panel, live deploy/postdeploy panels, MurphyScan
    readiness screen.
 
