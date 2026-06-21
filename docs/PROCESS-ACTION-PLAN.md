@@ -76,10 +76,10 @@ repo) → TARGET (product, plane B)`, everything speaking **MCP** at the hub.
 | L6 Orchestrate+observe | loop/trace | wiring + `*→Trace` | consume | ✅ LangGraph + retry-on-BLOCK |
 | L6.5 Merge | gated merge | `Verdict(PASS) → MergeRecord` | OWN stage | ✅ **landed 2026-06-21** (PASS merges, BLOCK refused) |
 | L7 Deploy | ship | `Verdict(PASS) → Delivery` | INTEGRATE (own stage, delegate mechanism) | ✅ Vercel; flagship live |
-| L8 Verify-in-prod | gate prod | `Delivery → Verdict` | **OWN gate** | ✅ health/payload gate; ❌ **rollback trigger NOT built** |
+| L8 Verify-in-prod | gate prod | `Delivery → Verdict` | **OWN gate** | ✅ health/payload gate + **rollback trigger** (landed 2026-06-21) |
 
-**Depth-1 spine = 9/11.** Structural gaps: **(a) L8 rollback trigger** (buildable, no account),
-**(b) L5.5 quality review / CodeRabbit** (needs account), **(c) finish reconcile-live**.
+**Depth-1 spine = 10/11.** Structural gaps: **(a) L5.5 quality review / CodeRabbit** (needs
+account), **(b) finish reconcile-live**. *(L8 rollback trigger closed 2026-06-21.)*
 
 ## 4. The metric (O3) and current evidence
 Full computable spec: `eval-metric-O3.md`. One-line claim: *with the gate in the loop, fewer bad
@@ -155,9 +155,10 @@ Anti-trap discipline [LOCKED]: prove the **evidence + a depth-1 through-deploy s
 flagship FIRST**; fan out to ~50 adapters only AFTER. Evidence ✅ done; spine 9/11.
 
 **Track 1 — close the spine (no external account; agy-delegable):**
-1. **L8 rollback trigger** — post-deploy `BLOCK` fires a Vercel promote-previous; record in the
-   `Delivery`/prod `Verdict`. *Acceptance:* a forced-bad deploy is detected and rolled back, with
-   a deterministic test (mock the promote call, like `test_deploy_postdeploy.py`).
+1. ~~**L8 rollback trigger**~~ — ✅ **DONE 2026-06-21** (`docs/SPEC-l8-rollback.md`, commit
+   `b43b396`). Post-deploy `BLOCK` fires `VercelDeployAdapter.rollback` via opt-in `postdeploy
+   --rollback`; outcome recorded in `verdict.raw["rollback"]`; gate stays mechanism-free. 4 new
+   deterministic tests (mock promote + urlopen), 81 passed / 1 skipped.
 2. **Reconcile-live (S9)** — wire the per-PR spawn to a real CBM code-graph (not a hand-passed
    `codegraph.json`); emit `ReconciliationReport`. *Acceptance:* on the flagship, a real PR
    produces a divergence report a haiku-class model can read; advisory only, never blocks.
