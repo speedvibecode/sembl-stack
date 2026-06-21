@@ -71,15 +71,16 @@ repo) → TARGET (product, plane B)`, everything speaking **MCP** at the hub.
 | L3 Execute | write | `Task+Bounds → Change` | consume | ✅ ×3 (claude / aider / opencode·MiniMax) |
 | L4 Sandbox | contain | `Change → Change` | consume | ✅ disposable clone (alias worktree) |
 | L5 Verify (gate) | gate the diff | `Change+Bounds → Verdict` | **OWN gate** | ✅ green, sembl 0.1.20 |
-| L5.5 Reconcile (per-PR) | spec↔code drift | `SpecGraph+CodeGraph → Report` | INTEGRATE (advisory) | ◐ **CLI stage exists; live per-PR spawn + real code-graph NOT wired** |
+| L5.5 Reconcile (per-PR) | spec↔code drift | `SpecGraph+CodeGraph → Report` | INTEGRATE (advisory) | ✅ **live: `reconcile --live` drives a real CBM index** (landed 2026-06-22); flagship live-proof pending owner run |
 | L5.5 Quality review | code-quality signal | PR → findings | INTEGRATE | ❌ **CodeRabbit — needs account** |
 | L6 Orchestrate+observe | loop/trace | wiring + `*→Trace` | consume | ✅ LangGraph + retry-on-BLOCK |
 | L6.5 Merge | gated merge | `Verdict(PASS) → MergeRecord` | OWN stage | ✅ **landed 2026-06-21** (PASS merges, BLOCK refused) |
 | L7 Deploy | ship | `Verdict(PASS) → Delivery` | INTEGRATE (own stage, delegate mechanism) | ✅ Vercel; flagship live |
 | L8 Verify-in-prod | gate prod | `Delivery → Verdict` | **OWN gate** | ✅ health/payload gate + **rollback trigger** (landed 2026-06-21) |
 
-**Depth-1 spine = 10/11.** Structural gaps: **(a) L5.5 quality review / CodeRabbit** (needs
-account), **(b) finish reconcile-live**. *(L8 rollback trigger closed 2026-06-21.)*
+**Depth-1 spine = 11/11** (all stages wired). Remaining: **L5.5 quality review / CodeRabbit**
+(needs account; the only un-wired stage) + the flagship live-proof of reconcile-live (owner run).
+*(L8 rollback closed 2026-06-21; reconcile-live closed 2026-06-22.)*
 
 ## 4. The metric (O3) and current evidence
 Full computable spec: `eval-metric-O3.md`. One-line claim: *with the gate in the loop, fewer bad
@@ -159,9 +160,11 @@ flagship FIRST**; fan out to ~50 adapters only AFTER. Evidence ✅ done; spine 9
    `b43b396`). Post-deploy `BLOCK` fires `VercelDeployAdapter.rollback` via opt-in `postdeploy
    --rollback`; outcome recorded in `verdict.raw["rollback"]`; gate stays mechanism-free. 4 new
    deterministic tests (mock promote + urlopen), 81 passed / 1 skipped.
-2. **Reconcile-live (S9)** — wire the per-PR spawn to a real CBM code-graph (not a hand-passed
-   `codegraph.json`); emit `ReconciliationReport`. *Acceptance:* on the flagship, a real PR
-   produces a divergence report a haiku-class model can read; advisory only, never blocks.
+2. ~~**Reconcile-live (S9)**~~ — ✅ **DONE 2026-06-22** (`docs/SPEC-reconcile-live.md`, commit
+   `53ad50c`). New `CbmCodeGraph` adapter drives codebase-memory-mcp headlessly behind a
+   `codegraph` layer; `reconcile --live --repo` builds the graph from a real CBM index (no
+   hand-passed JSON). Subprocess-contained, advisory-only. 7 new tests, 88 passed / 1 skipped.
+   *Remaining:* the flagship live-proof run (owner, §7 of the spec) → hand the report to Claude.
 
 **Track 2 — the `sembl stack` TUI (parallel; agy-delegable):**
 3. **TUI Phase 0** (`docs/SPEC-tui-phase0.md`, to write) — bare-`sembl-stack` Textual app + stage
