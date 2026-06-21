@@ -10,6 +10,8 @@ from .adapters.execute_aider import AiderExecutor
 from .adapters.execute_claude import ClaudeCodeExecutor
 from .adapters.execute_mock import MockExecutor
 from .adapters.execute_opencode import OpenCodeExecutor
+from .adapters.deploy_vercel import VercelDeployAdapter
+from .adapters.postdeploy_http import HttpPostDeployGate
 from .adapters.sandbox_worktree import WorktreeSandbox
 from .adapters.spec_sembl import SemblSpecAdapter
 from .adapters.verify_sembl import SemblVerifyAdapter
@@ -41,6 +43,12 @@ _REGISTRY: dict[str, dict[str, object]] = {
     "context": {                                          # L1 semantic graph (optional)
         "symgraph": lambda t, s, o: SymgraphGraph(timeout=o.get("timeout", 300)),
         "none": lambda t, s, o: None,
+    },
+    "deploy": {
+        "vercel": lambda t, s, o: VercelDeployAdapter(timeout=o.get("timeout", 1800)),
+    },
+    "postdeploy": {
+        "http": lambda t, s, o: HttpPostDeployGate(),
     },
 }
 

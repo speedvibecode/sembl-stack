@@ -1,0 +1,36 @@
+{
+  "name": "sembl-flagship-feedback-board",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "tsc --noEmit",
+    "verify": "npm run typecheck && npm run build",
+    "deploy:check": "node scripts/check-deploy-readiness.mjs",
+    "deploy:preview": "npm run deploy:check && npm run build && vercel --yes",
+    "deploy:prod": "npm run deploy:check && npm run build && vercel --prod --yes",
+    "postdeploy": "node scripts/postdeploy-health.mjs",
+    "supabase:init": "npx supabase init --yes",
+    "supabase:link": "npx supabase link",
+    "supabase:push": "npx supabase db push"
+  },
+  "dependencies": {
+    "@supabase/ssr": "^0.12.0",
+    "@supabase/supabase-js": "^2.108.2",
+    "lucide-react": "^1.21.0",
+    "next": "^16.2.9",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7"
+  },
+  "devDependencies": {
+    "@types/node": "^26.0.0",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "typescript": "^6.0.3"
+  },
+  "overrides": {
+    "postcss": "^8.5.15"
+  }
+}

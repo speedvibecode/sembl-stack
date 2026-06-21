@@ -1,0 +1,23 @@
+layers:
+  spec: sembl
+  execute: mock
+  sandbox: worktree
+  verify: sembl
+  deploy: vercel
+  postdeploy: http
+
+transport:
+  spec: mcp
+  verify: mcp
+  mcp_server: ["uvx", "--from", "sembl[mcp]", "sembl-mcp"]
+
+loop:
+  max_attempts: 2
+  strict: true
+
+tracing:
+  langfuse: false
+
+options:
+  postdeploy:
+    health_path: /api/health

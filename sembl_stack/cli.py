@@ -5,6 +5,10 @@ whole loop OR any subset, enter at any point (supply the upstream artifact), and
 custom step between two stages (read the upstream artifact, write the downstream one):
 
     sembl-stack bounds  --task t.yaml                 --out bounds.json
+    sembl-stack specgraph --task t.yaml --bounds b.json --out specgraph.json
+    sembl-stack reconcile --specgraph specgraph.json --codegraph codegraph.json
+    sembl-stack deploy --verdict verdict.json --out delivery.json
+    sembl-stack postdeploy --delivery delivery.json --out prod-verdict.json
     sembl-stack execute --task t.yaml --bounds b.json --out change.json
     sembl-stack verify  --change change.json --bounds b.json     # the gate, standalone
     sembl-stack loop    t.yaml                                    # the full wiring
@@ -19,9 +23,11 @@ import click
 import yaml
 
 from . import artifacts, doctor as doctor_mod, presets, registry
-from .artifacts import Bounds, Change, Task, Verdict
+from .artifacts import Bounds, Change, Delivery, SpecGraph, Task, Verdict
 from .config import load
 from .loop import run as run_loop
+from .reconciliation import reconcile_spec_code
+from .specgraph import build_spec_graph
 from .store import RunStore
 
 
@@ -56,7 +62,28 @@ def _emit(artifact, out: str | None):
 
 
 def _read_bounds(path: str) -> Bounds:
-    return Bounds.from_json(Path(path).read_text(encoding="utf-8"))
+    return Bounds.from_json(Path(path).read_text(encoding="utf-8-sig"))
+
+
+def _read_specgraph(path: str) -> SpecGraph:
+    artifact = artifacts.from_dict(json.loads(Path(path).read_text(encoding="utf-8-sig")))
+    if not isinstance(artifact, SpecGraph):
+        raise click.UsageError(f"{path} is not a SpecGraph artifact")
+    return artifact
+
+
+def _read_verdict(path: str) -> Verdict:
+    artifact = artifacts.from_dict(json.loads(Path(path).read_text(encoding="utf-8-sig")))
+    if not isinstance(artifact, Verdict):
+        raise click.UsageError(f"{path} is not a Verdict artifact")
+    return artifact
+
+
+def _read_delivery(path: str) -> Delivery:
+    artifact = artifacts.from_dict(json.loads(Path(path).read_text(encoding="utf-8-sig")))
+    if not isinstance(artifact, Delivery):
+        raise click.UsageError(f"{path} is not a Delivery artifact")
+    return artifact
 
 
 # --- full loop ----------------------------------------------------------------
@@ -122,6 +149,81 @@ def bounds(task_file, repo, spec, text, config_path, expand, hops, out):
     if expand:
         bnds = _expand_bounds(bnds, task.repo, cfg, hops)
     _emit(bnds, out)
+
+
+@main.command()
+@click.option("--task", "task_file", type=click.Path(exists=True, dir_okay=False))
+@click.option("--repo", default=".")
+@click.option("--spec", default=None, help="Spec Kit tasks.md / feature dir.")
+@click.option("--text", default=None, help="Task text (if no --task file).")
+@click.option("--bounds", "bounds_path", type=click.Path(exists=True),
+              help="Optional Bounds artifact to include declared scope.")
+@click.option("--out", default=None, help="Write the SpecGraph artifact here (else stdout).")
+def specgraph(task_file, repo, spec, text, bounds_path, out):
+    """L2: Task(+Bounds) -> SpecGraph. Emit the spec-side reconciliation graph."""
+    task = _load_task(task_file, repo, spec, text)
+    bnds = _read_bounds(bounds_path) if bounds_path else None
+    _emit(build_spec_graph(task, bnds), out)
+
+
+@main.command()
+@click.option("--specgraph", "specgraph_path", required=True,
+              type=click.Path(exists=True, dir_okay=False))
+@click.option("--codegraph", "codegraph_path", required=True,
+              type=click.Path(exists=True, dir_okay=False),
+              help="Code graph JSON, e.g. codebase-memory-mcp nodes/results output.")
+@click.option("--out", default=None,
+              help="Write the ReconciliationReport artifact here (else stdout).")
+def reconcile(specgraph_path, codegraph_path, out):
+    """L5.5: SpecGraph+CodeGraph -> advisory ReconciliationReport."""
+    spec_graph = _read_specgraph(specgraph_path)
+    code_graph = json.loads(Path(codegraph_path).read_text(encoding="utf-8-sig"))
+    _emit(reconcile_spec_code(spec_graph, code_graph), out)
+
+
+@main.command()
+@click.option("--repo", default=".")
+@click.option("--verdict", "verdict_path", required=True,
+              type=click.Path(exists=True, dir_okay=False),
+              help="Final gate Verdict artifact. Must be PASS unless --allow-warn.")
+@click.option("--allow-warn", is_flag=True,
+              help="Allow deploying a WARN verdict. BLOCK is never deployed.")
+@click.option("--prod/--preview", "production", default=False,
+              help="Deploy to production instead of preview.")
+@click.option("--prebuilt/--no-prebuilt", default=False,
+              help="Deploy existing Vercel build output with `vercel deploy --prebuilt`.")
+@click.option("--config", "config_path", default="sembl.stack.yaml")
+@click.option("--out", default=None, help="Write the Delivery artifact here.")
+def deploy(repo, verdict_path, allow_warn, production, prebuilt, config_path, out):
+    """L7: Verdict(PASS) -> Delivery. Deploy via the configured adapter."""
+    verdict = _read_verdict(verdict_path)
+    if verdict.status == "BLOCK":
+        raise click.UsageError("refusing to deploy a BLOCK verdict")
+    if verdict.status == "WARN" and not allow_warn:
+        raise click.UsageError("refusing to deploy WARN without --allow-warn")
+    if verdict.status != "PASS" and verdict.status != "WARN":
+        raise click.UsageError(f"unsupported verdict status: {verdict.status}")
+
+    cfg = load(config_path if Path(config_path).is_file() else None)
+    delivery = cfg.deploy.deploy(repo, production=production, prebuilt=prebuilt)
+    _emit(delivery, out)
+    raise SystemExit(0 if delivery.status == "deployed" else 1)
+
+
+@main.command()
+@click.option("--delivery", "delivery_path", required=True,
+              type=click.Path(exists=True, dir_okay=False))
+@click.option("--health-path", default="/", show_default=True)
+@click.option("--timeout", "timeout_s", default=10.0, show_default=True, type=float)
+@click.option("--config", "config_path", default="sembl.stack.yaml")
+@click.option("--out", default=None, help="Write the production Verdict artifact here.")
+def postdeploy(delivery_path, health_path, timeout_s, config_path, out):
+    """L8: Delivery -> Verdict. Deterministic post-deploy health gate."""
+    delivery = _read_delivery(delivery_path)
+    cfg = load(config_path if Path(config_path).is_file() else None)
+    verdict = cfg.postdeploy.verify(delivery, health_path=health_path, timeout_s=timeout_s)
+    _emit(verdict, out)
+    raise SystemExit(0 if verdict.status in ("PASS", "WARN") else 1)
 
 
 def _expand_bounds(bnds, repo, cfg, hops):
@@ -274,7 +376,7 @@ def doctor(config_path):
 @main.command()
 def layers():
     """List the available adapters per layer."""
-    for layer in ("spec", "execute", "sandbox", "verify", "context"):
+    for layer in ("spec", "execute", "sandbox", "verify", "context", "deploy", "postdeploy"):
         click.echo(f"{layer:9}: {', '.join(registry.names(layer))}")
 
 

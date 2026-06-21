@@ -67,9 +67,11 @@ only in-memory objects you could not enter/exit at arbitrary stages. [LOCKED]
 |---|---|---|---|
 | `Task` | you / spec | L1, L2, L3 | intent + repo ref |
 | `Context` | L1 / Brain | L3 | repo-intel + pulled knowledge |
+| `SpecGraph` | L2 / spec | L5.5 reconcile | graph of the spec; paired against `CodeGraph` per-PR (added 2026-06-20 PM, S9) |
 | `Bounds` | L2 | L3, L5 | scope contract (the thing Sembl checks) |
 | `Change` | L3 | L4, L5 | diff + executor self-report |
 | `Verdict` | L5 | loop, merge | PASS/WARN/BLOCK + reasons |
+| `ReconciliationReport` | L5.5 | human | spec↔code drift; advisory, human-reconciled, NOT a gate (S9) |
 | `Trace` | L6 | web lens | step timeline |
 | `Delivery` | Plane B | audit | deploy record (Phase 3) |
 
@@ -92,6 +94,7 @@ inspectable, no server required to read a past run.
 | L3 Execute | write | `Task+Bounds(+Context) → Change` | **OpenCode, Aider, Claude Code** (+Codex/Cursor when stable) | CONSUME |
 | L4 Sandbox | contain | `Change → Change` | git worktree, Docker, E2B, Daytona | CONSUME |
 | L5 Verify | gate | `Change+Bounds → Verdict` | **Sembl** + Semgrep, ruff/eslint/tsc, pytest | **OWN gate** |
+| L5.5 Reconcile (per-PR) | spec↔code drift | `SpecGraph+CodeGraph → ReconciliationReport` | haiku-class agent + codebase-memory-mcp | INTEGRATE — advisory, human-reconciled, **NOT** the gate (added 2026-06-20 PM, S9) |
 | L6 Orchestrate+Observe | loop/trace | wiring + `* → Trace` | LangGraph, CrewAI + Langfuse, OTel | CONSUME |
 | L7 Deploy | ship | `Verdict(PASS) → Delivery` | Vercel, Fly, Cloudflare, GH Actions | INTEGRATE (own the stage, **delegate the mechanism**) |
 | L8 Verify-in-prod | gate prod | `Delivery → Verdict` | health/smoke + Sentry error-rate → **Sembl rollback gate** | **OWN gate** + consume signals |

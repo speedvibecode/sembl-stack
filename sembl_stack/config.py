@@ -10,7 +10,8 @@ from . import registry
 
 DEFAULTS = {
     "layers": {"spec": "sembl", "execute": "mock",
-               "sandbox": "worktree", "verify": "sembl", "context": "none"},
+               "sandbox": "worktree", "verify": "sembl", "context": "none",
+               "deploy": "vercel", "postdeploy": "http"},
     "transport": {"spec": "mcp", "verify": "mcp",
                   "mcp_server": ["uvx", "--from", "sembl[mcp]", "sembl-mcp"]},
     "loop": {"max_attempts": 3, "strict": True},
@@ -25,6 +26,8 @@ class StackConfig:
     sandbox: object
     verify: object
     context: object = None
+    deploy: object = None
+    postdeploy: object = None
     max_attempts: int = 3
     strict: bool = True
     langfuse: bool = False
@@ -59,6 +62,10 @@ def load(path: str | None) -> StackConfig:
                               opts.get("verify")),
         context=registry.build("context", layers.get("context", "none"), "cli", server,
                                opts.get("context")),
+        deploy=registry.build("deploy", layers.get("deploy", "vercel"), "cli", server,
+                              opts.get("deploy")),
+        postdeploy=registry.build("postdeploy", layers.get("postdeploy", "http"), "cli",
+                                  server, opts.get("postdeploy")),
         max_attempts=cfg["loop"]["max_attempts"],
         strict=cfg["loop"]["strict"],
         langfuse=cfg["tracing"]["langfuse"],

@@ -77,7 +77,7 @@ class SemblSpecAdapter:
         candidates.append(Path(task.repo) / "bounds.json")
         for cand in candidates:
             if cand.is_file():
-                return self._from_payload(json.loads(cand.read_text(encoding="utf-8")))
+                return self._from_payload(json.loads(cand.read_text(encoding="utf-8-sig")))
         raise RuntimeError("L2: could not derive bounds (no MCP, no CLI, no bounds.json)")
 
     @staticmethod

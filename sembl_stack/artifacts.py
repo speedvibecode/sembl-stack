@@ -38,7 +38,7 @@ class _Serializable:
         return cls.from_dict(json.loads(s))
 
 
-# --- The seven artifacts (PLATFORM-MAP §2) ------------------------------------
+# --- Artifacts ---------------------------------------------------------------
 
 @dataclass
 class Task(_Serializable):
@@ -55,6 +55,16 @@ class Context(_Serializable):
     KIND = "context"
     summary: str = ""
     files: list[str] = field(default_factory=list)
+    data: dict = field(default_factory=dict)
+
+
+@dataclass
+class SpecGraph(_Serializable):
+    """Graph form of the spec for advisory spec/code reconciliation."""
+    KIND = "specgraph"
+    nodes: list[dict] = field(default_factory=list)
+    edges: list[dict] = field(default_factory=list)
+    sources: list[str] = field(default_factory=list)
     data: dict = field(default_factory=dict)
 
 
@@ -106,6 +116,16 @@ class Verdict(_Serializable):
 
 
 @dataclass
+class ReconciliationReport(_Serializable):
+    """Advisory spec/code drift report; never a gate verdict."""
+    KIND = "reconciliation_report"
+    status: str = "UNKNOWN"
+    summary: str = ""
+    findings: list[dict] = field(default_factory=list)
+    data: dict = field(default_factory=dict)
+
+
+@dataclass
 class Trace(_Serializable):
     """Observability: the ordered steps of a run (L6)."""
     KIND = "trace"
@@ -125,7 +145,9 @@ class Delivery(_Serializable):
 # ExecutionResult is the legacy name for Change; kept so existing adapters import cleanly.
 ExecutionResult = Change
 
-KINDS = {c.KIND: c for c in (Task, Context, Bounds, Change, Verdict, Trace, Delivery)}
+KINDS = {c.KIND: c for c in (
+    Task, Context, SpecGraph, Bounds, Change, Verdict, ReconciliationReport,
+    Trace, Delivery)}
 
 
 def from_dict(d: dict):

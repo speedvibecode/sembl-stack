@@ -18,6 +18,7 @@ from typing import Any, TypedDict
 from .adapters.base import Task, Verdict
 from .artifacts import Change, Trace
 from .config import StackConfig
+from .specgraph import build_spec_graph
 from .store import RunStore
 from .tracing import get_tracer
 
@@ -185,6 +186,7 @@ def _nodes(cfg: StackConfig, task: Task, tracer, run):
     def plan(state: dict) -> dict:
         with tracer.span("L2.plan"):
             bounds = cfg.spec.plan(task)
+        run.put(build_spec_graph(task, bounds))
         _maybe_expand(cfg, task, bounds, tracer)   # L1: widen along the context graph
         run.put(bounds)                            # persist Bounds artifact (post-expansion)
         return {"bounds": bounds}

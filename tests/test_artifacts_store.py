@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 from sembl_stack import artifacts
-from sembl_stack.artifacts import Bounds, Change, Task, Verdict
+from sembl_stack.artifacts import (
+    Bounds, Change, ReconciliationReport, SpecGraph, Task, Verdict,
+)
 from sembl_stack.store import RunStore
 
 
@@ -16,6 +18,21 @@ def test_artifact_roundtrip_via_tag():
     assert again.to_contract() == {
         "editable_paths": ["src/"], "forbidden_areas": ["infra/"],
         "churn_budget": {"max_files": 4}}
+
+    graph = SpecGraph(
+        nodes=[{"id": "task", "type": "task", "name": "task"}],
+        edges=[],
+        sources=["task.text"],
+        data={"schema_version": 1},
+    )
+    again_graph = artifacts.from_dict(graph.to_dict())
+    assert isinstance(again_graph, SpecGraph)
+    assert again_graph.nodes[0]["id"] == "task"
+
+    report = ReconciliationReport(status="ALIGNED", summary="ok")
+    again_report = artifacts.from_dict(report.to_dict())
+    assert isinstance(again_report, ReconciliationReport)
+    assert again_report.status == "ALIGNED"
 
 
 def test_verdict_helpers():

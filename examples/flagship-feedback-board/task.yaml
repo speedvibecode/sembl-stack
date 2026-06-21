@@ -1,0 +1,3 @@
+text: "Build the flagship feedback board: Supabase auth, owner-scoped feedback items, database reads and writes, list views by status, Vercel-ready health check, and no secret persistence."
+repo: "."
+spec_path: "./specs/001-feedback-board"

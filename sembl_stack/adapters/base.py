@@ -15,6 +15,8 @@ from ..artifacts import (  # noqa: F401  (re-exported for adapters)
     Context,
     Delivery,
     ExecutionResult,
+    ReconciliationReport,
+    SpecGraph,
     Task,
     Trace,
     Verdict,
@@ -111,3 +113,23 @@ class ExecuteAdapter(Protocol):      # L3: Task+Bounds(+Context) -> Change
 class VerifyAdapter(Protocol):       # L5: Change+Bounds -> Verdict
     def verify(self, bounds: Bounds, result: ExecutionResult,
                strict: bool) -> Verdict: ...
+
+
+@runtime_checkable
+class ReconcileAdapter(Protocol):    # L5.5: SpecGraph+CodeGraph -> report
+    def reconcile(self, spec_graph: SpecGraph, code_graph: dict) -> ReconciliationReport:
+        ...
+
+
+@runtime_checkable
+class DeployAdapter(Protocol):       # L7: Verdict(PASS) -> Delivery
+    def deploy(self, repo: str, *, production: bool = False,
+               prebuilt: bool = False) -> Delivery:
+        ...
+
+
+@runtime_checkable
+class PostDeployAdapter(Protocol):   # L8: Delivery -> Verdict
+    def verify(self, delivery: Delivery, *, health_path: str = "/",
+               timeout_s: float = 10.0) -> Verdict:
+        ...

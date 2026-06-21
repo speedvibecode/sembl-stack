@@ -1,0 +1,27 @@
+{
+  "editable_paths": [
+    "src/",
+    "supabase/",
+    "package.json",
+    "package-lock.json",
+    "next.config.ts",
+    "tsconfig.json",
+    "postcss.config.mjs",
+    "next-env.d.ts",
+    ".env.example",
+    ".gitignore",
+    "README.md"
+  ],
+  "forbidden_areas": [
+    ".env",
+    ".env.local",
+    ".env*.local",
+    ".vercel/",
+    "node_modules/",
+    ".next/"
+  ],
+  "churn_budget": {
+    "max_files": 40,
+    "max_lines": 2200
+  }
+}
