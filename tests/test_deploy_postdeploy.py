@@ -68,6 +68,54 @@ def test_http_postdeploy_gate_passes_on_2xx(monkeypatch):
     assert verdict.raw["url"] == "https://app.example/api/health"
 
 
+def _json_response(status_code, payload):
+    class Response:
+        status = status_code
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+        def read(self, n):
+            import json as _json
+            return _json.dumps(payload).encode("utf-8")[:n]
+
+    return Response
+
+
+def test_http_postdeploy_gate_passes_on_matching_payload(monkeypatch):
+    monkeypatch.setattr(
+        "sembl_stack.adapters.postdeploy_http.urlopen",
+        lambda req, timeout: _json_response(200, {"ok": True, "app": "feedback"})(),
+    )
+
+    verdict = HttpPostDeployGate().verify(
+        Delivery(target="vercel", url="https://app.example", status="deployed"),
+        health_path="/api/health",
+        expect_json={"ok": True, "app": "feedback"},
+    )
+
+    assert verdict.status == "PASS"
+
+
+def test_http_postdeploy_gate_blocks_on_payload_mismatch(monkeypatch):
+    monkeypatch.setattr(
+        "sembl_stack.adapters.postdeploy_http.urlopen",
+        lambda req, timeout: _json_response(200, {"ok": False, "app": "feedback"})(),
+    )
+
+    verdict = HttpPostDeployGate().verify(
+        Delivery(target="vercel", url="https://app.example", status="deployed"),
+        health_path="/api/health",
+        expect_json={"ok": True},
+    )
+
+    assert verdict.status == "BLOCK"
+    assert "payload mismatch" in verdict.reasons[0]
+
+
 def test_http_postdeploy_gate_blocks_missing_delivery_url():
     verdict = HttpPostDeployGate().verify(Delivery(target="vercel", status="failed"))
 
