@@ -89,10 +89,23 @@ def _read_delivery(path: str) -> Delivery:
 
 # --- full loop ----------------------------------------------------------------
 
-@click.group()
+@click.group(invoke_without_command=True)
 @click.version_option()
-def main():
-    """sembl-stack — an open, swappable spec-driven coding factory."""
+@click.pass_context
+def main(ctx):
+    """sembl-stack — an open, swappable spec-driven coding factory.
+
+    Run bare (no subcommand) to launch the guided TUI wizard (New/Existing -> stage rail,
+    leave/continue-anywhere via .sembl/session.json).
+    """
+    if ctx.invoked_subcommand is not None:
+        return
+    from . import wizard
+    if not wizard.available():
+        raise click.UsageError(
+            "the guided TUI needs Textual — `pip install \"sembl-stack[tui]\"`.\n"
+            "  (or run a stage directly, e.g. `sembl-stack loop task.yaml`)")
+    wizard.launch(".")
 
 
 @click.argument("task_file", type=click.Path(exists=True, dir_okay=False))
