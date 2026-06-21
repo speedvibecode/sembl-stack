@@ -6,13 +6,23 @@ from urllib.error import URLError
 from urllib.parse import urljoin
 from urllib.request import Request, urlopen
 
+from ._redact import summarize
 from .base import Delivery, Verdict
 
 
 class HttpPostDeployGate:
-    def verify(self, delivery: Delivery, *, health_path: str = "/",
+    def __init__(self, health_path: str = "/", expect_json: dict | None = None):
+        # Defaults come from config `options.postdeploy` (threaded by the registry) so the
+        # spine can enforce a real health contract — e.g. {ok, supabaseConfigured} — by config
+        # alone. A CLI flag overrides per-call; None means "use the configured default".
+        self.health_path = health_path
+        self.expect_json = expect_json
+
+    def verify(self, delivery: Delivery, *, health_path: str | None = None,
                timeout_s: float = 10.0,
                expect_json: dict | None = None) -> Verdict:
+        health_path = health_path if health_path is not None else self.health_path
+        expect_json = expect_json if expect_json is not None else self.expect_json
         if delivery.status != "deployed" or not delivery.url:
             return Verdict(
                 status="BLOCK",
@@ -31,15 +41,15 @@ class HttpPostDeployGate:
         except (OSError, URLError) as exc:
             return Verdict(
                 status="BLOCK",
-                reasons=[f"post-deploy health check failed: {exc}"],
-                raw={"url": url, "error": repr(exc)},
+                reasons=[f"post-deploy health check failed: {type(exc).__name__}"],
+                raw={"url": url, "error": type(exc).__name__},
             )
 
         if not (200 <= int(code) < 400):
             return Verdict(
                 status="BLOCK",
                 reasons=[f"post-deploy health check returned HTTP {code}"],
-                raw={"url": url, "status_code": int(code), "body": body},
+                raw={"url": url, "status_code": int(code), "body": summarize(body)},
             )
 
         # A 2xx/3xx is necessary but not sufficient: a misconfigured app can return
@@ -53,8 +63,10 @@ class HttpPostDeployGate:
                 return Verdict(
                     status="BLOCK",
                     reasons=["post-deploy health payload is not valid JSON"],
-                    raw={"url": url, "status_code": int(code), "body": body},
+                    raw={"url": url, "status_code": int(code), "body": summarize(body)},
                 )
+            # Only the allowlisted expected keys are surfaced (health booleans the caller
+            # declared) — never the full third-party payload, which may carry env-shaped values.
             mismatches = [
                 f"{key}={payload.get(key)!r} (want {value!r})"
                 for key, value in expect_json.items()
@@ -64,7 +76,7 @@ class HttpPostDeployGate:
                 return Verdict(
                     status="BLOCK",
                     reasons=[f"post-deploy health payload mismatch: {', '.join(mismatches)}"],
-                    raw={"url": url, "status_code": int(code), "payload": payload},
+                    raw={"url": url, "status_code": int(code), "body": summarize(body)},
                 )
 
         return Verdict(status="PASS", raw={"url": url, "status_code": int(code)})

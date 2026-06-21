@@ -12,6 +12,7 @@ import subprocess
 import time
 from pathlib import Path
 
+from ._redact import summarize
 from .base import Delivery
 
 _URL_RE = re.compile(r"https://[^\s]+")
@@ -50,8 +51,8 @@ class VercelDeployAdapter:
                     "reason": "timeout",
                     "latency_s": round(time.perf_counter() - t0, 3),
                     "command": _safe_command(cmd),
-                    "stdout": _tail(exc.stdout),
-                    "stderr": _tail(exc.stderr),
+                    "stdout": summarize(exc.stdout),
+                    "stderr": summarize(exc.stderr),
                 },
             )
 
@@ -69,8 +70,8 @@ class VercelDeployAdapter:
                 "returncode": proc.returncode,
                 "latency_s": round(time.perf_counter() - t0, 3),
                 "command": _safe_command(cmd),
-                "stdout": _tail(stdout),
-                "stderr": _tail(stderr),
+                "stdout": summarize(stdout),
+                "stderr": summarize(stderr),
             },
         )
 
@@ -101,8 +102,8 @@ class VercelDeployAdapter:
                     "reason": "timeout",
                     "latency_s": round(time.perf_counter() - t0, 3),
                     "command": _safe_command(cmd),
-                    "stdout": _tail(exc.stdout),
-                    "stderr": _tail(exc.stderr),
+                    "stdout": summarize(exc.stdout),
+                    "stderr": summarize(exc.stderr),
                 },
             )
 
@@ -119,8 +120,8 @@ class VercelDeployAdapter:
                 "returncode": proc.returncode,
                 "latency_s": round(time.perf_counter() - t0, 3),
                 "command": _safe_command(cmd),
-                "stdout": _tail(stdout),
-                "stderr": _tail(stderr),
+                "stdout": summarize(stdout),
+                "stderr": summarize(stderr),
             },
         )
 
@@ -128,15 +129,6 @@ class VercelDeployAdapter:
 def _last_url(text: str | None) -> str | None:
     urls = _URL_RE.findall(text or "")
     return urls[-1].rstrip(".,)") if urls else None
-
-
-def _tail(text: str | bytes | None, limit: int = 4000) -> str:
-    if text is None:
-        return ""
-    if isinstance(text, bytes):
-        text = text.decode("utf-8", "replace")
-    text = str(text)
-    return text[-limit:]
 
 
 def _safe_command(cmd: list[str]) -> list[str]:

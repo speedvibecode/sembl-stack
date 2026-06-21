@@ -123,6 +123,59 @@ def test_http_postdeploy_gate_blocks_missing_delivery_url():
     assert "no URL" in verdict.reasons[0]
 
 
+def test_http_postdeploy_redacts_response_body(monkeypatch):
+    """A 500 health body must never be serialized raw into the artifact."""
+    secret = "TOKEN_sk_live_LEAKED_abc123"
+
+    class Response:
+        status = 500
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+        def read(self, n):
+            return (secret + " internal error").encode("utf-8")[:n]
+
+    monkeypatch.setattr("sembl_stack.adapters.postdeploy_http.urlopen",
+                        lambda req, timeout: Response())
+
+    verdict = HttpPostDeployGate().verify(
+        Delivery(target="vercel", url="https://app.example", status="deployed"),
+        health_path="/api/health")
+
+    assert verdict.status == "BLOCK"
+    assert secret not in verdict.to_json()                # content redacted...
+    assert verdict.raw["body"]["sha256"]                  # ...fingerprint kept
+
+
+def test_postdeploy_config_threads_payload_contract(monkeypatch, tmp_path):
+    """options.postdeploy.expect_json must be enforced by default (no CLI flag needed)."""
+    from sembl_stack.config import load
+
+    cfg_path = tmp_path / "sembl.stack.yaml"
+    cfg_path.write_text(
+        "layers: {postdeploy: http}\n"
+        "options:\n  postdeploy:\n    health_path: /api/health\n"
+        "    expect_json: {ok: true, supabaseConfigured: true}\n",
+        encoding="utf-8")
+    cfg = load(str(cfg_path))
+    assert cfg.postdeploy.health_path == "/api/health"
+    assert cfg.postdeploy.expect_json == {"ok": True, "supabaseConfigured": True}
+
+    # A 200 that fails the contract (supabaseConfigured:false) must BLOCK via config alone.
+    monkeypatch.setattr(
+        "sembl_stack.adapters.postdeploy_http.urlopen",
+        lambda req, timeout: _json_response(200, {"ok": True, "supabaseConfigured": False})(),
+    )
+    verdict = cfg.postdeploy.verify(
+        Delivery(target="vercel", url="https://app.example", status="deployed"))
+    assert verdict.status == "BLOCK"
+    assert "payload mismatch" in verdict.reasons[0]
+
+
 def test_deploy_cli_refuses_block_verdict(tmp_path):
     verdict_path = tmp_path / "verdict.json"
     verdict_path.write_text(Verdict(status="BLOCK").to_json(), encoding="utf-8")

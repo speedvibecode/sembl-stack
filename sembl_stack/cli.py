@@ -196,11 +196,11 @@ def reconcile(specgraph_path, codegraph_path, live, repo, config_path, out):
     """L5.5: SpecGraph+CodeGraph -> advisory ReconciliationReport (advisory, never a gate)."""
     spec_graph = _read_specgraph(specgraph_path)
     if live:
+        # Advisory, never a gate: a missing/failed code graph yields an empty graph -> UNKNOWN
+        # report at exit 0 (the adapter already degrades internally). Never raise on CBM
+        # absence — only genuinely contradictory input below is a usage error.
         cfg = load(config_path if Path(config_path).is_file() else None)
-        if cfg.codegraph is None or not cfg.codegraph.available():
-            raise click.UsageError(
-                "--live needs a codegraph adapter (codebase-memory-mcp on PATH)")
-        code_graph = cfg.codegraph.code_graph(repo)
+        code_graph = cfg.codegraph.code_graph(repo) if cfg.codegraph is not None else {}
     elif codegraph_path:
         code_graph = json.loads(Path(codegraph_path).read_text(encoding="utf-8-sig"))
     else:
@@ -280,7 +280,8 @@ def deploy(repo, verdict_path, allow_warn, production, prebuilt, config_path, ou
 @main.command()
 @click.option("--delivery", "delivery_path", required=True,
               type=click.Path(exists=True, dir_okay=False))
-@click.option("--health-path", default="/", show_default=True)
+@click.option("--health-path", default=None,
+              help="Override the configured health path (default from options.postdeploy).")
 @click.option("--timeout", "timeout_s", default=10.0, show_default=True, type=float)
 @click.option("--rollback/--no-rollback", "do_rollback", default=False,
               help="On a BLOCK verdict, fire a rollback via the deploy adapter (promote previous).")
@@ -291,6 +292,8 @@ def postdeploy(delivery_path, health_path, timeout_s, do_rollback, repo, config_
     """L8: Delivery -> Verdict. Deterministic post-deploy health gate (+ optional rollback)."""
     delivery = _read_delivery(delivery_path)
     cfg = load(config_path if Path(config_path).is_file() else None)
+    # health_path=None lets the adapter use its configured default (options.postdeploy.health_path
+    # + expect_json payload contract); an explicit --health-path overrides per-call.
     verdict = cfg.postdeploy.verify(delivery, health_path=health_path, timeout_s=timeout_s)
 
     # L8 rollback trigger: a BLOCK means the live deploy is bad — revert it. Opt-in so default

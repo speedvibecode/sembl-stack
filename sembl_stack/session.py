@@ -49,11 +49,28 @@ def save(session: Session) -> Path:
 
 
 def load(repo: str) -> "Session | None":
+    """Read the saved session, or None if it's missing OR unusable.
+
+    A truncated/corrupt `session.json` or one pointing at an unknown stage must NOT brick the
+    guided entrypoint — an unusable pointer is treated exactly like no pointer (start fresh).
+    """
     p = _path(repo)
     if not p.is_file():
         return None
-    data = json.loads(p.read_text(encoding="utf-8"))
-    return Session(**{k: v for k, v in data.items() if k in Session.__dataclass_fields__})
+    try:
+        data = json.loads(p.read_text(encoding="utf-8"))
+        if not isinstance(data, dict):
+            return None
+        s = Session(**{k: v for k, v in data.items() if k in Session.__dataclass_fields__})
+    except (OSError, ValueError, TypeError):
+        return None
+    # Validate the stage pointer so advance()'s STAGES.index never raises on bad state.
+    if s.current_stage not in STAGES:
+        return None
+    if not isinstance(s.completed, list):
+        return None
+    s.completed = [stage for stage in s.completed if stage in STAGES]
+    return s
 
 
 def resume_or_new(repo: str) -> Session:

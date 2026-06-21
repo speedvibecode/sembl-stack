@@ -10,6 +10,7 @@ import json
 import shutil
 import subprocess
 
+from ._redact import summarize
 from .base import ReviewReport
 
 
@@ -33,7 +34,7 @@ class CodeRabbitReviewAdapter:
                 timeout=self.timeout)
         except (OSError, subprocess.TimeoutExpired) as exc:
             return ReviewReport(reviewer="coderabbit", status="UNKNOWN",
-                                data={"error": repr(exc)})
+                                data={"error": type(exc).__name__})
         return _parse(proc.stdout)
 
 
@@ -44,8 +45,9 @@ def _parse(text: str | None) -> ReviewReport:
     try:
         payload = json.loads(text)
     except json.JSONDecodeError:
+        # Never persist raw reviewer stdout (may carry diff snippets / auth errors) — fingerprint only.
         return ReviewReport(reviewer="coderabbit", status="UNKNOWN",
-                            data={"raw_head": text[:200]})
+                            data={"raw": summarize(text)})
     raw = payload.get("findings", []) if isinstance(payload, dict) else []
     findings = [{"severity": f.get("severity", "warn"), "kind": f.get("kind", "quality"),
                  "file": f.get("file", ""), "message": f.get("message", "")}

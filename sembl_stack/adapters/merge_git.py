@@ -11,6 +11,7 @@ import subprocess
 import time
 from pathlib import Path
 
+from ._redact import summarize
 from .base import MergeRecord
 
 
@@ -40,36 +41,59 @@ class GitMergeAdapter:
                       "latency_s": round(time.perf_counter() - t0, 3)})
 
         prev = _git(["rev-parse", "--abbrev-ref", "HEAD"]).stdout.strip()
-        _git(["checkout", into])
+
+        # Switching to the target MUST succeed before we merge. A dirty tree, a locked branch,
+        # or any refusal returns non-zero; if we ignored it the merge would run on whatever
+        # branch is currently checked out while the record claims `into` was merged — a false
+        # accountability record (and it could mutate the source branch). Fail loudly instead.
+        co = _git(["checkout", into])
+        if co.returncode != 0:
+            return MergeRecord(
+                target_branch=into, source_ref=source, status="failed",
+                data={"reason": "checkout of target branch failed",
+                      "returncode": co.returncode, "previous_branch": prev,
+                      "latency_s": round(time.perf_counter() - t0, 3),
+                      "stderr": summarize(co.stderr)})
+        # Defense in depth: confirm HEAD actually moved to the target before merging.
+        cur = _git(["rev-parse", "--abbrev-ref", "HEAD"]).stdout.strip()
+        if cur != into:
+            return MergeRecord(
+                target_branch=into, source_ref=source, status="failed",
+                data={"reason": f"expected to be on '{into}' but on '{cur}' after checkout",
+                      "previous_branch": prev,
+                      "latency_s": round(time.perf_counter() - t0, 3)})
+
         msg = message or f"merge {source} into {into} (sembl-gated)"
         merge_cmd = ["merge", *(["--no-ff"] if no_ff else []), "-m", msg, source]
         m = _git(merge_cmd)
 
         if m.returncode != 0:
             _git(["merge", "--abort"])     # best-effort cleanup of a conflicted merge
+            self._restore(_git, prev, into)
             return MergeRecord(
                 target_branch=into, source_ref=source, status="failed",
                 data={"reason": "merge failed", "returncode": m.returncode,
                       "previous_branch": prev,
                       "latency_s": round(time.perf_counter() - t0, 3),
                       "command": _safe_command(["git", *merge_cmd]),
-                      "stdout": _tail(m.stdout), "stderr": _tail(m.stderr)})
+                      "stdout": summarize(m.stdout), "stderr": summarize(m.stderr)})
 
         sha = _git(["rev-parse", "HEAD"]).stdout.strip()
+        restored = self._restore(_git, prev, into)
         return MergeRecord(
             target_branch=into, source_ref=source, commit=sha or None, status="merged",
-            data={"no_ff": no_ff, "previous_branch": prev,
+            data={"no_ff": no_ff, "previous_branch": prev, "restored_to_branch": restored,
                   "latency_s": round(time.perf_counter() - t0, 3),
                   "command": _safe_command(["git", *merge_cmd]),
-                  "stdout": _tail(m.stdout), "stderr": _tail(m.stderr)})
+                  "stdout": summarize(m.stdout), "stderr": summarize(m.stderr)})
 
-
-def _tail(text, limit: int = 4000) -> str:
-    if text is None:
-        return ""
-    if isinstance(text, bytes):
-        text = text.decode("utf-8", "replace")
-    return str(text)[-limit:]
+    @staticmethod
+    def _restore(_git, prev: str, into: str) -> str | None:
+        """Best-effort: leave the repo on the branch it started on (the merge commit stays on
+        `into` regardless). Returns the branch we ended on, or None if restore was skipped."""
+        if not prev or prev in ("HEAD", into):
+            return None
+        return prev if _git(["checkout", prev]).returncode == 0 else None
 
 
 def _safe_command(cmd: list[str]) -> list[str]:

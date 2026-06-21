@@ -61,6 +61,47 @@ def test_coderabbit_unknown_on_bad_json():
     assert _parse("").status == "UNKNOWN"
 
 
+def test_coderabbit_redacts_unparseable_stdout():
+    """Unparseable reviewer stdout (may carry diff snippets/auth errors) must not be persisted raw."""
+    secret = "token_ghp_LEAKED_999"
+    r = _parse(secret + " <not json>")
+    assert r.status == "UNKNOWN"
+    assert secret not in r.to_json()
+    assert r.data["raw"]["sha256"]
+
+
+def test_coderabbit_unknown_on_timeout(monkeypatch):
+    import subprocess
+    monkeypatch.setattr("sembl_stack.adapters.review_coderabbit.shutil.which", lambda b: "cr.exe")
+
+    def boom(*a, **k):
+        raise subprocess.TimeoutExpired(cmd="cr", timeout=1)
+
+    monkeypatch.setattr("sembl_stack.adapters.review_coderabbit.subprocess.run", boom)
+    r = CodeRabbitReviewAdapter().review(_N1)
+    assert r.status == "UNKNOWN" and r.findings == []
+
+
+def test_coderabbit_unknown_on_oserror(monkeypatch):
+    monkeypatch.setattr("sembl_stack.adapters.review_coderabbit.shutil.which", lambda b: "cr.exe")
+
+    def boom(*a, **k):
+        raise OSError("spawn failed")
+
+    monkeypatch.setattr("sembl_stack.adapters.review_coderabbit.subprocess.run", boom)
+    r = CodeRabbitReviewAdapter().review(_N1)
+    assert r.status == "UNKNOWN"
+
+
+def test_review_report_round_trips():
+    from sembl_stack.artifacts import from_dict
+    rep = ReviewReport(reviewer="mock", status="FINDINGS",
+                       findings=[{"severity": "warn", "kind": "n_plus_one", "file": "a.js"}])
+    back = from_dict(rep.to_dict())
+    assert isinstance(back, ReviewReport)
+    assert back.status == "FINDINGS" and back.findings[0]["kind"] == "n_plus_one"
+
+
 def test_review_cli_is_advisory(tmp_path):
     diff = tmp_path / "c.patch"
     diff.write_text(_N1, encoding="utf-8")
@@ -84,4 +125,9 @@ def test_two_axis_eval_shows_complementarity():
     r = subprocess.run([sys.executable, "eval/two_axis.py", "--json"],
                        capture_output=True, text=True)
     res = json.loads(r.stdout)
-    assert res["gate_only"] > 0 and res["quality_only"] > 0   # each catches what the other misses
+    # each catches what the other misses...
+    assert res["gate_only"] > 0 and res["quality_only"] > 0
+    # ...with no overlap, and the review-only catch is exactly the planted quality defect
+    # (guards against a mock that false-positives clean cases into `both`/`quality_only`).
+    assert res["both"] == 0
+    assert res["quality_only_cases"] == ["14-quality-defect-passes-gate"]

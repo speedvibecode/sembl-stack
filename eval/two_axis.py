@@ -32,17 +32,19 @@ def main() -> int:
     review = MockReviewAdapter()
     gate_only = quality_only = both = neither = 0
     rows = []
+    quality_only_cases = []
     for c in _cases():
         gate_bad = _gate(c) == "BLOCK"
         quality_bad = review.review(c["diff"]).status == "FINDINGS"
         rows.append((c["name"], gate_bad, quality_bad))
         if gate_bad and quality_bad: both += 1
         elif gate_bad: gate_only += 1
-        elif quality_bad: quality_only += 1
+        elif quality_bad: quality_only += 1; quality_only_cases.append(c["name"])
         else: neither += 1
 
     res = {"gate_only": gate_only, "quality_only": quality_only,
-           "both": both, "neither": neither, "n": len(rows)}
+           "both": both, "neither": neither, "n": len(rows),
+           "quality_only_cases": quality_only_cases}
     if "--json" in sys.argv:
         print(json.dumps(res, indent=2)); return 0
     print("2x2 — Sembl gate (process) x mock review (quality):")

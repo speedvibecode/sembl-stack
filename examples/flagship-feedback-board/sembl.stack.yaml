@@ -21,3 +21,8 @@ tracing:
 options:
   postdeploy:
     health_path: /api/health
+    # A 2xx alone isn't enough: assert the app's own health contract (src/app/api/health/route.ts)
+    # so a 200 with supabaseConfigured:false is BLOCKed, not passed.
+    expect_json:
+      ok: true
+      supabaseConfigured: true

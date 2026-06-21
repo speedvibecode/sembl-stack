@@ -66,7 +66,8 @@ _REGISTRY: dict[str, dict[str, object]] = {
         "vercel": lambda t, s, o: VercelDeployAdapter(timeout=o.get("timeout", 1800)),
     },
     "postdeploy": {
-        "http": lambda t, s, o: HttpPostDeployGate(),
+        "http": lambda t, s, o: HttpPostDeployGate(
+            health_path=o.get("health_path", "/"), expect_json=o.get("expect_json")),
     },
 }
 
