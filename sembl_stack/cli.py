@@ -244,13 +244,24 @@ def deploy(repo, verdict_path, allow_warn, production, prebuilt, config_path, ou
               type=click.Path(exists=True, dir_okay=False))
 @click.option("--health-path", default="/", show_default=True)
 @click.option("--timeout", "timeout_s", default=10.0, show_default=True, type=float)
+@click.option("--rollback/--no-rollback", "do_rollback", default=False,
+              help="On a BLOCK verdict, fire a rollback via the deploy adapter (promote previous).")
+@click.option("--repo", default=".", help="Repo dir for the rollback call (linked Vercel project).")
 @click.option("--config", "config_path", default="sembl.stack.yaml")
 @click.option("--out", default=None, help="Write the production Verdict artifact here.")
-def postdeploy(delivery_path, health_path, timeout_s, config_path, out):
-    """L8: Delivery -> Verdict. Deterministic post-deploy health gate."""
+def postdeploy(delivery_path, health_path, timeout_s, do_rollback, repo, config_path, out):
+    """L8: Delivery -> Verdict. Deterministic post-deploy health gate (+ optional rollback)."""
     delivery = _read_delivery(delivery_path)
     cfg = load(config_path if Path(config_path).is_file() else None)
     verdict = cfg.postdeploy.verify(delivery, health_path=health_path, timeout_s=timeout_s)
+
+    # L8 rollback trigger: a BLOCK means the live deploy is bad — revert it. Opt-in so default
+    # behavior is unchanged. The rollback outcome is recorded in the prod Verdict, never hidden.
+    if do_rollback and verdict.status == "BLOCK":
+        rollback = cfg.deploy.rollback(repo)
+        verdict.raw["rollback"] = rollback.to_dict()
+        verdict.reasons.append(f"rollback triggered: {rollback.status}")
+
     _emit(verdict, out)
     raise SystemExit(0 if verdict.status in ("PASS", "WARN") else 1)
 

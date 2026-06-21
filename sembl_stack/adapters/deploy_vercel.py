@@ -74,6 +74,56 @@ class VercelDeployAdapter:
             },
         )
 
+    def rollback(self, repo: str, *, to: str | None = None) -> Delivery:
+        """Promote the previous production deployment (Vercel rollback).
+
+        Mechanism only: the decision to roll back is the caller's (the L8 gate Verdict).
+        `to` optionally names a specific deployment URL/id to roll back to; omitted, Vercel
+        reverts to the immediately previous production deployment.
+        """
+        repo_path = str(Path(repo).resolve())
+        cmd = ["vercel", "rollback"]
+        if to:
+            cmd.append(to)
+        if self.yes:
+            cmd.append("--yes")
+
+        t0 = time.perf_counter()
+        try:
+            proc = subprocess.run(
+                cmd, cwd=repo_path, capture_output=True, text=True,
+                encoding="utf-8", errors="replace", timeout=self.timeout)
+        except subprocess.TimeoutExpired as exc:
+            return Delivery(
+                target="vercel",
+                status="rollback_failed",
+                data={
+                    "reason": "timeout",
+                    "latency_s": round(time.perf_counter() - t0, 3),
+                    "command": _safe_command(cmd),
+                    "stdout": _tail(exc.stdout),
+                    "stderr": _tail(exc.stderr),
+                },
+            )
+
+        stdout = proc.stdout or ""
+        stderr = proc.stderr or ""
+        url = _last_url(stdout) or _last_url(stderr)
+        status = "rolled_back" if proc.returncode == 0 else "rollback_failed"
+        return Delivery(
+            target="vercel",
+            url=url,
+            status=status,
+            data={
+                "rolled_back_to": to,
+                "returncode": proc.returncode,
+                "latency_s": round(time.perf_counter() - t0, 3),
+                "command": _safe_command(cmd),
+                "stdout": _tail(stdout),
+                "stderr": _tail(stderr),
+            },
+        )
+
 
 def _last_url(text: str | None) -> str | None:
     urls = _URL_RE.findall(text or "")

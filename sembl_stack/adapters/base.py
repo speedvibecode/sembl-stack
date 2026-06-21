@@ -130,9 +130,12 @@ class MergeAdapter(Protocol):        # L6.5: Verdict(PASS) -> MergeRecord
 
 
 @runtime_checkable
-class DeployAdapter(Protocol):       # L7: Verdict(PASS) -> Delivery
+class DeployAdapter(Protocol):       # L7: Verdict(PASS) -> Delivery; rollback reverts it
     def deploy(self, repo: str, *, production: bool = False,
                prebuilt: bool = False) -> Delivery:
+        ...
+
+    def rollback(self, repo: str, *, to: str | None = None) -> Delivery:
         ...
 
 

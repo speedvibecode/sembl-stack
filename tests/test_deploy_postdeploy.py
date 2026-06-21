@@ -133,3 +133,118 @@ def test_deploy_cli_refuses_block_verdict(tmp_path):
 
     assert result.exit_code != 0
     assert "refusing to deploy a BLOCK" in result.output
+
+
+def test_vercel_rollback_promotes_previous(monkeypatch, tmp_path):
+    calls = []
+
+    def fake_run(cmd, **kwargs):
+        calls.append(cmd)
+        return SimpleNamespace(
+            returncode=0,
+            stdout="Success! Rolled back to https://feedback-board.vercel.app\n",
+            stderr="",
+        )
+
+    monkeypatch.setattr("sembl_stack.adapters.deploy_vercel.subprocess.run", fake_run)
+
+    delivery = VercelDeployAdapter(timeout=5).rollback(str(tmp_path))
+
+    assert delivery.status == "rolled_back"
+    assert delivery.url == "https://feedback-board.vercel.app"
+    assert calls[0] == ["vercel", "rollback", "--yes"]
+    assert "token" not in delivery.to_json().lower()
+
+
+def test_vercel_rollback_records_failure(monkeypatch, tmp_path):
+    def fake_run(cmd, **kwargs):
+        return SimpleNamespace(returncode=1, stdout="", stderr="no previous deployment")
+
+    monkeypatch.setattr("sembl_stack.adapters.deploy_vercel.subprocess.run", fake_run)
+
+    delivery = VercelDeployAdapter(timeout=5).rollback(str(tmp_path))
+
+    assert delivery.status == "rollback_failed"
+    assert delivery.data["returncode"] == 1
+
+
+def test_postdeploy_cli_rolls_back_on_block(monkeypatch, tmp_path):
+    # Gate sees an unhealthy deploy (HTTP 500) -> BLOCK.
+    class Response:
+        status = 500
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+        def read(self, n):
+            return b"down"
+
+    monkeypatch.setattr("sembl_stack.adapters.postdeploy_http.urlopen",
+                        lambda req, timeout: Response())
+    # Stub the rollback mechanism so the test never touches the network.
+    monkeypatch.setattr(
+        "sembl_stack.adapters.deploy_vercel.VercelDeployAdapter.rollback",
+        lambda self, repo, **kw: Delivery(
+            target="vercel", url="https://prev.vercel.app", status="rolled_back"),
+    )
+
+    delivery_path = tmp_path / "delivery.json"
+    delivery_path.write_text(
+        Delivery(target="vercel", url="https://app.example", status="deployed").to_json(),
+        encoding="utf-8")
+    out_path = tmp_path / "prod-verdict.json"
+
+    result = CliRunner().invoke(main, [
+        "postdeploy", "--delivery", str(delivery_path),
+        "--health-path", "/api/health", "--rollback",
+        "--repo", str(tmp_path), "--out", str(out_path),
+    ])
+
+    assert result.exit_code != 0          # BLOCK still fails the stage
+    verdict = Verdict.from_json(out_path.read_text(encoding="utf-8"))
+    assert verdict.status == "BLOCK"
+    assert verdict.raw["rollback"]["status"] == "rolled_back"
+    assert any("rollback triggered" in r for r in verdict.reasons)
+
+
+def test_postdeploy_cli_no_rollback_by_default(monkeypatch, tmp_path):
+    class Response:
+        status = 500
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+        def read(self, n):
+            return b"down"
+
+    monkeypatch.setattr("sembl_stack.adapters.postdeploy_http.urlopen",
+                        lambda req, timeout: Response())
+
+    called = []
+    monkeypatch.setattr(
+        "sembl_stack.adapters.deploy_vercel.VercelDeployAdapter.rollback",
+        lambda self, repo, **kw: called.append(repo),
+    )
+
+    delivery_path = tmp_path / "delivery.json"
+    delivery_path.write_text(
+        Delivery(target="vercel", url="https://app.example", status="deployed").to_json(),
+        encoding="utf-8")
+    out_path = tmp_path / "prod-verdict.json"
+
+    result = CliRunner().invoke(main, [
+        "postdeploy", "--delivery", str(delivery_path),
+        "--health-path", "/api/health", "--repo", str(tmp_path), "--out", str(out_path),
+    ])
+
+    assert result.exit_code != 0
+    assert called == []                   # default = no rollback fired
+    verdict = Verdict.from_json(out_path.read_text(encoding="utf-8"))
+    assert "rollback" not in verdict.raw
+
