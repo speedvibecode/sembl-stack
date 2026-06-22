@@ -5,8 +5,13 @@
 > source-of-truth. Nothing auto-runs — owner fires agents manually. Method: Claude pins specs +
 > reviews/re-verifies (never trusts an agent's self-check); cheap CLIs execute.
 >
-> **Framing (owner):** launch-first — the RSI vision ("100% of the process") only comes after we
-> ship. We move fast: this is a ~2-week big-bang, not a quarter.
+> **Framing (owner, 2026-06-22):** launch is **a target, not a guillotine.** The standing,
+> non-negotiable bar is that the three repos are **clean and fully usable** (owner-dogfood-grade) —
+> the owner is the **first user** and will use Claude *through* sembl regardless, so the RSI loop
+> survives even if the launch underperforms (just slower). Launch polish (channels, waitlist,
+> big-bang timing, the CodeRabbit hard-gate) sits *on top* of "clean + usable", never in place of
+> it. If a hard gate disappoints, slipping/de-scoping it is fine; shipping something rough is not.
+> We move fast — this is a ~2-week big-bang, not a quarter — but unhurried where it matters.
 
 ## 0. Locked decisions (the consensus)
 
