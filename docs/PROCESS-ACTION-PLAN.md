@@ -10,6 +10,10 @@
 >
 > Last reconciled: 2026-06-21. Current branch of record: `ws2-through-deploy-spine`
 > (master untouched). Re-verify state against the repo before trusting any status line.
+>
+> **▶ For execution, start here: [LAUNCH-PREP-JULY1.md](LAUNCH-PREP-JULY1.md)** — the turnkey
+> July-1 runbook (ordered fire-able workstreams across all three repos, agent roster, gotchas).
+> This plan stays the architecture/decision source-of-truth; the runbook is the execution overlay.
 
 ---
 
