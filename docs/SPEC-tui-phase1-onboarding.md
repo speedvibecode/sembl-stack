@@ -1,11 +1,16 @@
 # SPEC — `sembl-stack` guided TUI, Phase 1: onboarding + bring-your-own-credits
 
-> **Status: PINNED (2026-06-22), for July-1 execution.** Builds on Phase 0
-> ([SPEC-tui-phase0.md](SPEC-tui-phase0.md): `session.py` + `wizard.py` + the stage rail +
-> `.sembl/session.json` resume). Phase 1 adds the **first-run onboarding** the owner specified: a
-> seamless flow that captures the user's preferences and, crucially, **how they want Sembl to pay
-> for model calls — using their own credits / plan / tool-calling**. Easy enough for non-technical
-> users, powerful enough for the technical target.
+> **Status: PINNED (2026-06-22), revised to the BYO stance, for July-1 execution.** Builds on
+> Phase 0 ([SPEC-tui-phase0.md](SPEC-tui-phase0.md): `session.py` + `wizard.py` + the stage rail +
+> `.sembl/session.json` resume). Phase 1 adds the **first-run onboarding**.
+>
+> **Bring your own keys is the price of entry (owner, 2026-06-22).** sembl-stack is an
+> *orchestration layer* — it does not provide inference. To use the loop, a user **brings their own
+> keys / subscription** (their Claude Code login, their API key, or a local model). This is the
+> correct filter for who actually adopts it. The onboarding's job is to make *bringing your booze*
+> seamless — auto-detect what's already there, validate it, get out of the way — **not** to coddle
+> with a free ride. **Mock is only a no-AI "see the mechanics" preview, never the hero path.**
+> "Non-tech-easy" means the *flow* is smooth; it does not mean we supply inference.
 >
 > **Delegation:** agy builds the Textual screens + the pure profile core from this spec; **Claude
 > writes and reviews the credential-selection path itself** (security-sensitive — keys must never
@@ -15,8 +20,11 @@
 On a first run (no profile yet), bare **`sembl-stack`** opens an **onboarding wizard** that:
 1. **Welcomes + explains in one plain sentence** what Sembl does (an accountability gate around an
    AI coding loop) — no jargon wall.
-2. **Asks how to run the AI** (the BYO-credits choice — §2) and **validates it works** (doctor
-   preflight) before proceeding.
+2. **Auto-detects the user's own credentials** (existing `claude` login? `ANTHROPIC_API_KEY` /
+   `OPENAI_API_KEY` in env? a local endpoint?) and **preselects** the one it finds; the user
+   confirms or switches (the BYO choice — §2). **Validates it works** (doctor preflight) before
+   proceeding. If nothing is found, it explains plainly that Sembl runs on *your* keys and points
+   to the 30-second setup — with the no-AI mock preview as the only keyless option.
 3. **Captures preferences** (§3): new-or-existing repo, strictness/preset, default executor options.
 4. **Persists a profile** (§4) so subsequent runs skip onboarding and go straight to the stage rail.
 A returning user (profile present) **never sees onboarding** — they land on the rail (Phase-0 resume).
@@ -49,17 +57,19 @@ class Profile:
   (`layers.execute`, `options.execute.{model,...}`, `loop.strict`) so the loop runs under the
   user's chosen runner with zero extra wiring.
 
-## 2. The BYO-credits choice (the heart of Phase 1)
-Onboarding presents four plain-language options; each maps to existing executor adapters:
+## 2. The BYO choice (the heart of Phase 1)
+Onboarding presents the bring-your-own options; each maps to an existing executor adapter. The one
+auto-detected (§0.2) is preselected.
 | Choice (shown to user) | `runner` | `executor` | Credentials |
 |---|---|---|---|
-| **"Use my Claude Code login"** (recommended) | `claude-login` | `claude` | the user's `claude` OAuth — token-free; we shell `claude -p` (never `--bare`) |
-| **"Use my API key"** (Anthropic / OpenAI-compatible) | `api-key` | `claude` or `aider`/`opencode` | key read from an **env var** (or OS keyring); pointer stored as `key_source`, value never persisted |
-| **"Use a local model"** | `local` | `opencode`/`aider` | local endpoint; no cloud key |
-| **"Just try it (no AI)"** | `mock` | `mock` | none — lets a newcomer see the whole loop instantly |
+| **"Use my Claude Code login"** | `claude-login` | `claude` | the user's `claude` OAuth — token-free; we shell `claude -p` (never `--bare`) |
+| **"Use my API key"** (Anthropic / OpenAI-compatible) | `api-key` | `claude` / `aider` / `opencode` | key read from an **env var**; only a `key_source` pointer is stored, **never the value** (env-only for launch; keyring post-launch) |
+| **"Use a local model"** | `local` | `opencode` / `aider` | local endpoint; no cloud key |
+| _"Preview the mechanics (no AI)"_ | `mock` | `mock` | none — **not the hero path**; a keyless way to see the loop's shape, clearly labelled as not-real-AI |
 Selection → **doctor preflight** for that runner (binary present? key env set? `claude` logged in?).
 On failure, show the one concrete fix and stay on the screen — never proceed with a runner that
-can't run.
+can't run. The expectation is BYO keys; `mock` is the only no-key option and is presented as a
+preview, not a default.
 
 ## 3. Preferences captured
 Repo mode (new/existing — reuses Phase-0 `Session.mode`), strictness (`loop.strict`), and an optional
@@ -79,7 +89,8 @@ discipline for any rendered copy. The technical depth lives behind "Advanced", n
 
 ## 6. Security (launch-credibility — do not cut)
 - **No API key value is ever written** to `profile.json`, `session.json`, any run-store artifact, or
-  a log. Only a `key_source` pointer. Reads happen at runtime from env/keyring.
+  a log. Only a `key_source` pointer (e.g. `"env:ANTHROPIC_API_KEY"`). **Env-only for launch** —
+  reads happen at runtime from env; OS-keyring support is a post-launch nicety, not in scope now.
 - Reuse the redaction helper (`adapters/_redact.py`) for any executor output surfaced in the UI.
 - This is the single-user slice of O5; the hosted/multi-user permission model stays out of scope
   (LAUNCH-PREP WS-L, post-launch).
