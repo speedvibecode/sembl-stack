@@ -41,6 +41,13 @@ _KEY_ENV_VARS = ["ANTHROPIC_API_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY"]
 # key_source may only ever be a pointer: an env-var name or (post-launch) the keyring.
 _SAFE_KEY_SOURCE = re.compile(r"^(env:[A-Za-z_][A-Za-z0-9_]*|keyring)$")
 
+# model must look like a model id ("claude-opus-4-8", "tokenrouter/MiniMax-M3",
+# "ollama/llama3:8b") — short, from a tight charset, and never key-prefixed. This is the
+# second half of the security invariant: the free-form Model input is the one field a
+# user could paste an API key into, and a key there would otherwise reach profile.json,
+# argv (`--model`, visible in the process list), and run reports.
+_SAFE_MODEL = re.compile(r"^(?!sk-)[A-Za-z0-9][A-Za-z0-9._:/\-]{0,63}$")
+
 
 @dataclass
 class Profile:
@@ -57,10 +64,13 @@ def path() -> Path:
 
 
 def save(profile: Profile, p: Path | None = None) -> Path:
-    """Persist the profile. Refuses anything secret-shaped in `key_source`."""
+    """Persist the profile. Refuses anything secret-shaped in `key_source` or `model`."""
     if profile.key_source is not None and not _SAFE_KEY_SOURCE.match(profile.key_source):
         raise ValueError(
             "key_source must be a pointer ('env:VAR_NAME' or 'keyring'), never a key value")
+    if profile.model is not None and not _SAFE_MODEL.match(profile.model):
+        raise ValueError(
+            "model must be a model id (e.g. 'claude-opus-4-8'), never an API key value")
     p = p or path()
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(json.dumps(asdict(profile), indent=2), encoding="utf-8")
@@ -89,6 +99,17 @@ def load(p: Path | None = None) -> Profile | None:
         return None
     if prof.key_source is not None and (
             not isinstance(prof.key_source, str) or not _SAFE_KEY_SOURCE.match(prof.key_source)):
+        return None
+    # The remaining fields flow straight into config/registry/argv — a hand-edited file
+    # with the wrong types (or a secret-shaped model) is unusable, same as corrupt.
+    if not isinstance(prof.executor, str) or not prof.executor:
+        return None
+    if prof.model is not None and (
+            not isinstance(prof.model, str) or not _SAFE_MODEL.match(prof.model)):
+        return None
+    if not isinstance(prof.strict, bool):
+        return None
+    if prof.preset is not None and not isinstance(prof.preset, str):
         return None
     return prof
 
@@ -131,17 +152,20 @@ def preflight(profile: Profile) -> list[Check]:
     a runner that can't run is never persisted as the profile.
     """
     checks: list[Check] = []
+    if profile.executor == "mock":
+        checks.append(Check("executor: mock", True, "no binary needed", required=False))
+    else:
+        # Checked even when runner == "mock": an Advanced executor override means a real
+        # binary will run, and a profile that can't run must never be persisted.
+        from .doctor import _EXECUTOR_BINARY   # single source of binary names + install hints
+        binary, hint = _EXECUTOR_BINARY.get(profile.executor, (profile.executor, ""))
+        found = shutil.which(binary)
+        checks.append(Check(f"executor: {profile.executor}", found is not None,
+                            found or "not found", hint))
+
     if profile.runner == "mock":
         checks.append(Check("runner: mock", True, "no credentials needed", required=False))
-        return checks
-
-    from .doctor import _EXECUTOR_BINARY   # single source of binary names + install hints
-    binary, hint = _EXECUTOR_BINARY.get(profile.executor, (profile.executor, ""))
-    found = shutil.which(binary)
-    checks.append(Check(f"executor: {profile.executor}", found is not None,
-                        found or "not found", hint))
-
-    if profile.runner == "api-key":
+    elif profile.runner == "api-key":
         var = (profile.key_source or "")[len("env:"):] if (
             profile.key_source or "").startswith("env:") else ""
         ok = bool(var) and bool(os.environ.get(var))
@@ -152,9 +176,10 @@ def preflight(profile: Profile) -> list[Check]:
             "reads it from there at runtime, never stores it"))
     elif profile.runner == "claude-login":
         # Binary presence is the cheap proxy; an un-logged-in `claude` fails loudly on
-        # first use with its own login prompt, which is the right UX anyway.
+        # first use with its own login prompt, which is the right UX anyway. Checked
+        # against `claude` itself — the executor may be a different binary.
         checks.append(Check(
-            "claude login", found is not None,
+            "claude login", shutil.which("claude") is not None,
             "uses your existing Claude Code session (token-free)",
             "run `claude` once and log in", required=False))
     return checks

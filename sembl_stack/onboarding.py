@@ -227,7 +227,11 @@ if _HAVE_TEXTUAL:
             if not ok:
                 self.query_one("#prefs-error", Static).update(hint)
                 return
-            profile.save(candidate)
+            try:
+                profile.save(candidate)
+            except ValueError as exc:      # e.g. an API key pasted into the Model field
+                self.query_one("#prefs-error", Static).update(str(exc))
+                return
             session = resume_or_new(self.repo)
             session.mode = str(self.query_one("#repo-mode", Select).value or "existing")
             save_session(session)

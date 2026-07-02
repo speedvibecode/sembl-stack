@@ -142,7 +142,9 @@ def main(ctx, reconfigure):
 def _loop_cmd(task_file: str, config_path: str):
     """Run the full wiring: plan -> execute -> verify (retry on BLOCK)."""
     task = _load_task(task_file, None, None, None)
-    cfg_file = config_path if Path(config_path).is_file() else None
+    # Resolve against the task's repo too — an explicit sembl.stack.yaml there must win
+    # over the profile even when the loop is launched from a different directory.
+    cfg_file = _resolve_config(config_path, task.repo)
     overrides = None
     if cfg_file is None:                 # no repo config: the onboarded profile is the default
         from . import profile as profile_mod

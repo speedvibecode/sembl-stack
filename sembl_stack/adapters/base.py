@@ -6,6 +6,8 @@ here so adapters import everything they need from one place.
 """
 from __future__ import annotations
 
+import os
+import re
 import subprocess
 from typing import Protocol, runtime_checkable
 
@@ -59,6 +61,30 @@ def changed_files_from_diff(diff: str) -> list[str]:
                 marker = marker[2:]
             add(marker.split("\t", 1)[0])     # drop a trailing tab-timestamp if present
     return out
+
+
+# Env-var names whose values are credentials; a secret only ever lives in the
+# environment, so an executor CLI echoing one (e.g. in an auth error) is the one
+# path it could reach a persisted run artifact. Scrubbed by value below.
+_SECRET_ENV_NAME = re.compile(r"(API_KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL)S?$", re.IGNORECASE)
+# Generic provider-key shapes (sk-ant-…, sk-proj-…, sk-or-v1-…) as a second net.
+_SECRET_TOKEN = re.compile(r"sk-[A-Za-z0-9_\-]{8,}")
+
+
+def scrub_secrets(text: str) -> str:
+    """Redact anything secret-shaped before it reaches a run artifact.
+
+    Executor stdout/stderr is persisted into `.sembl/runs/<id>/change.json` for
+    debuggability; the security invariant (no key value ever stored) must hold even
+    when a CLI misbehaves and echoes a credential. Env values are compared in memory
+    only — nothing read here is ever written anywhere except as its redaction marker.
+    """
+    if not text:
+        return text
+    for name, value in os.environ.items():
+        if len(value) >= 8 and _SECRET_ENV_NAME.search(name):
+            text = text.replace(value, f"[redacted:{name}]")
+    return _SECRET_TOKEN.sub("[redacted:key]", text)
 
 
 def run_executor(cmd: list[str], cwd: str, timeout: int, **run_kwargs):

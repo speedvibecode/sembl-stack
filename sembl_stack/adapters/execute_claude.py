@@ -26,6 +26,7 @@ from .base import (
     Task,
     changed_files_from_diff as _changed_files,
     run_executor,
+    scrub_secrets,
 )
 
 
@@ -55,8 +56,8 @@ class ClaudeCodeExecutor:
             "agent": "claude-code",
             "model": self.model,
             "exit_code": rc,
-            "output": out[-2000:],
-            "stderr": err[-1000:],
+            "output": scrub_secrets(out)[-2000:],
+            "stderr": scrub_secrets(err)[-1000:],
         }
         if timed_out:                          # surfaced to the gate as a BLOCK, not a crash
             report["error"] = "timeout"

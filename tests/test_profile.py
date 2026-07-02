@@ -50,6 +50,29 @@ def test_save_refuses_secret_shaped_key_source(tmp_path):
     assert not p.exists()   # nothing was written
 
 
+def test_save_refuses_secret_shaped_model(tmp_path):
+    # The free-form Model input is the one field a key could be pasted into; a key
+    # there would reach profile.json, argv (--model), and run reports.
+    p = tmp_path / "profile.json"
+    with pytest.raises(ValueError):
+        prof.save(Profile(runner="claude-login", executor="claude",
+                          model="sk-ant-api03-XXXXXXXXXXXX"), p)
+    assert not p.exists()
+
+
+@pytest.mark.parametrize("field,value", [
+    ("executor", 123), ("executor", ""),
+    ("model", "sk-ant-api03-XXXXXXXXXXXX"), ("model", "x" * 80),
+    ("strict", "yes"), ("preset", 7),
+])
+def test_load_rejects_bad_typed_or_secret_fields(tmp_path, field, value):
+    # Hand-edited profiles must be unusable-not-crashy: these flow into config/registry/argv.
+    p = tmp_path / "profile.json"
+    p.write_text(json.dumps({"runner": "mock", "executor": "mock", field: value}),
+                 encoding="utf-8")
+    assert prof.load(p) is None
+
+
 def test_no_key_value_is_ever_serialized(tmp_path, monkeypatch):
     secret = "sk-ant-live-THE-SECRET"
     monkeypatch.setenv("ANTHROPIC_API_KEY", secret)
@@ -123,6 +146,38 @@ def test_explicit_config_file_beats_profile(tmp_path):
     assert cfg.raw["layers"]["execute"] == "mock"   # the file always wins
 
 
+def test_loop_finds_repo_config_before_applying_profile(tmp_path, monkeypatch):
+    # `loop task.yaml` launched from OUTSIDE the repo must still honor the repo's own
+    # sembl.stack.yaml instead of silently substituting the profile (codex finding 4).
+    from click.testing import CliRunner
+    from sembl_stack import cli as cli_mod
+
+    repo = tmp_path / "target"
+    repo.mkdir()
+    (repo / "sembl.stack.yaml").write_text(
+        "layers:\n  execute: mock\ntransport:\n  spec: cli\n  verify: cli\n",
+        encoding="utf-8")
+    (repo / "task.yaml").write_text('text: do nothing\nrepo: "."\n', encoding="utf-8")
+
+    monkeypatch.setattr(prof, "load",
+                        lambda p=None: Profile(runner="claude-login", executor="claude"))
+    captured = {}
+
+    def fake_run_loop(cfg, task):
+        captured["execute"] = cfg.raw["layers"]["execute"]
+        class V: status = "PASS"; reasons = []
+        class R: engine = "stub"; history = [(1, "PASS")]; verdict = V(); attempts = 1; run_id = None
+        return R()
+
+    monkeypatch.setattr(cli_mod, "run_loop", fake_run_loop)
+    runner = CliRunner()
+    with runner.isolated_filesystem(temp_dir=tmp_path):   # CWD has no sembl.stack.yaml
+        res = runner.invoke(cli_mod.main, ["loop", str(repo / "task.yaml")])
+    assert res.exit_code == 0, res.output
+    assert "using your profile" not in res.output
+    assert captured["execute"] == "mock"                  # the repo's file won
+
+
 # --- preflight ------------------------------------------------------------------
 
 def test_preflight_mock_always_ready():
@@ -134,6 +189,23 @@ def test_preflight_claude_login_needs_binary(monkeypatch):
     monkeypatch.setattr(prof.shutil, "which", lambda b: None)
     ok, fix = prof.ready(prof.preflight(Profile(runner="claude-login", executor="claude")))
     assert not ok and "Claude Code" in fix
+
+
+def test_preflight_mock_runner_with_real_executor_checks_binary(monkeypatch):
+    # An Advanced executor override under the mock runner still runs a real binary —
+    # a profile that can't run must never be persisted.
+    monkeypatch.setattr(prof.shutil, "which", lambda b: None)
+    ok, fix = prof.ready(prof.preflight(Profile(runner="mock", executor="claude")))
+    assert not ok and "Claude Code" in fix
+
+
+def test_preflight_claude_login_checks_claude_not_the_executor(monkeypatch):
+    # The login proxy check is about `claude` itself, even when the executor differs.
+    monkeypatch.setattr(prof.shutil, "which",
+                        lambda b: "C:/bin/opencode" if b == "opencode" else None)
+    checks = prof.preflight(Profile(runner="claude-login", executor="opencode"))
+    login = next(c for c in checks if c.name == "claude login")
+    assert not login.ok
 
 
 def test_preflight_api_key_needs_env_var(monkeypatch):
