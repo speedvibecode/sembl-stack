@@ -2,10 +2,78 @@ from types import SimpleNamespace
 
 from click.testing import CliRunner
 
-from sembl_stack.adapters.deploy_vercel import VercelDeployAdapter
+from sembl_stack.adapters.deploy_vercel import VercelDeployAdapter, _last_url
 from sembl_stack.adapters.postdeploy_http import HttpPostDeployGate
 from sembl_stack.artifacts import Delivery, Verdict
-from sembl_stack.cli import main
+from sembl_stack.cli import _resolve_config, main
+
+
+def test_resolve_config_prefers_cwd_then_falls_back_to_repo(tmp_path):
+    """`deploy`/`postdeploy` take --repo separate from CWD (orchestrating a target repo
+    from elsewhere is supported) — a bare default config must still find the *target
+    repo's* config, not silently fall back to built-in defaults, when --repo != CWD.
+    Live-proof finding: running postdeploy from the sembl-stack root against the flagship
+    example silently loaded no config and skipped its expect_json health contract."""
+    repo_dir = tmp_path / "target-repo"
+    repo_dir.mkdir()
+    (repo_dir / "some.stack.yaml").write_text("layers: {}\n", encoding="utf-8")
+
+    # Not found anywhere -> None (caller's `load(None)` uses built-in defaults).
+    assert _resolve_config("some.stack.yaml", str(tmp_path / "nowhere")) is None
+
+    # Found only under --repo (the common case when CWD isn't the target repo).
+    assert _resolve_config("some.stack.yaml", str(repo_dir)) == str(
+        repo_dir / "some.stack.yaml")
+
+    # An explicit path that already exists (e.g. CWD-relative) wins outright.
+    cwd_cfg = tmp_path / "explicit.yaml"
+    cwd_cfg.write_text("layers: {}\n", encoding="utf-8")
+    assert _resolve_config(str(cwd_cfg), str(repo_dir)) == str(cwd_cfg)
+
+
+def test_last_url_prefers_the_deployment_over_dashboard_and_api_links():
+    """Real `vercel --prod --yes` output observed in a live-proof run (2026-07-01): stdout
+    interleaves a `vercel.com` dashboard "Inspect" link and (on some CLI versions) an
+    `api.vercel.com` status-poll call alongside the actual `*.vercel.app` deployment URL.
+    Picking the textually-last match without filtering returned the dashboard/API link
+    instead — silently pointing every downstream health check at the wrong host."""
+    stdout = (
+        "Vercel CLI 54.6.1 (Node.js 20.19.4)\n"
+        "🔍  Inspect: https://vercel.com/speedvibecodes-projects/"
+        "sembl-flagship-feedback-board/8mFDrkVKsNwwaC3TPTVrNv49kfLf [2s]\n"
+        "✅  Production: https://sembl-flagship-feedback-board-hr152fgvo-"
+        "speedvibecodes-projects.vercel.app [33s]\n"
+    )
+    assert _last_url(stdout) == (
+        "https://sembl-flagship-feedback-board-hr152fgvo-speedvibecodes-projects.vercel.app")
+
+    # Observed variant: a trailing api.vercel.com status-poll line, quoted, textually last.
+    noisy = stdout + '{"url":"https://api.vercel.com/v13/deployments/dpl_6JSNofSiZMp1qy1xjciFtVes53GZ"}\n'
+    assert _last_url(noisy) == (
+        "https://sembl-flagship-feedback-board-hr152fgvo-speedvibecodes-projects.vercel.app")
+
+    # No .vercel.app match at all -> falls back to whatever URL there is.
+    assert _last_url("only https://vercel.com/team/project/dpl_x here") == (
+        "https://vercel.com/team/project/dpl_x")
+
+    assert _last_url(None) is None
+    assert _last_url("") is None
+
+
+def test_resolve_vercel_wraps_windows_shims(monkeypatch):
+    from sembl_stack.adapters import deploy_vercel as dv
+
+    monkeypatch.setattr(dv.shutil, "which", lambda _: r"C:\x\vercel.CMD")
+    assert dv._resolve_vercel() == ["cmd", "/c", r"C:\x\vercel.CMD"]
+
+    monkeypatch.setattr(dv.shutil, "which", lambda _: r"C:\x\vercel.ps1")
+    assert dv._resolve_vercel()[:2] == ["powershell", "-NoProfile"]
+
+    monkeypatch.setattr(dv.shutil, "which", lambda _: "/usr/local/bin/vercel")
+    assert dv._resolve_vercel() == ["/usr/local/bin/vercel"]
+
+    monkeypatch.setattr(dv.shutil, "which", lambda _: None)
+    assert dv._resolve_vercel() == []
 
 
 def test_vercel_deploy_adapter_captures_url_without_secret(monkeypatch, tmp_path):
@@ -19,6 +87,7 @@ def test_vercel_deploy_adapter_captures_url_without_secret(monkeypatch, tmp_path
             stderr="",
         )
 
+    monkeypatch.setattr("sembl_stack.adapters.deploy_vercel._resolve_vercel", lambda: ["vercel"])
     monkeypatch.setattr("sembl_stack.adapters.deploy_vercel.subprocess.run", fake_run)
 
     delivery = VercelDeployAdapter(timeout=5).deploy(
@@ -188,7 +257,46 @@ def test_deploy_cli_refuses_block_verdict(tmp_path):
     assert "refusing to deploy a BLOCK" in result.output
 
 
-def test_vercel_rollback_promotes_previous(monkeypatch, tmp_path):
+def test_vercel_rollback_resolves_and_promotes_previous(monkeypatch, tmp_path):
+    """No `to` given: must look up the previous production deployment and target it
+    explicitly. Locks in the live-proof finding that bare `vercel rollback` (no target)
+    only reports rollback *status* on current CLI versions — it never rolls anything back."""
+    calls = []
+
+    def fake_run(cmd, **kwargs):
+        calls.append(cmd)
+        if cmd[1:] == ["ls", "--prod"]:
+            return SimpleNamespace(
+                returncode=0,
+                stdout=(
+                    "  Age   Project   Deployment   Status\n"
+                    "  5m    x         https://feedback-board-bad123.vercel.app   Ready\n"
+                    "  10d   x         https://feedback-board-good999.vercel.app  Ready\n"
+                    "\n"
+                    "https://feedback-board-bad123.vercel.app\n"
+                    "https://feedback-board-good999.vercel.app\n"
+                ),
+                stderr="",
+            )
+        return SimpleNamespace(
+            returncode=0,
+            stdout="Success! Rolled back to https://feedback-board-good999.vercel.app\n",
+            stderr="",
+        )
+
+    monkeypatch.setattr("sembl_stack.adapters.deploy_vercel._resolve_vercel", lambda: ["vercel"])
+    monkeypatch.setattr("sembl_stack.adapters.deploy_vercel.subprocess.run", fake_run)
+
+    delivery = VercelDeployAdapter(timeout=5).rollback(str(tmp_path))
+
+    assert delivery.status == "rolled_back"
+    assert delivery.url == "https://feedback-board-good999.vercel.app"
+    assert calls[0] == ["vercel", "ls", "--prod"]
+    assert calls[1] == ["vercel", "rollback", "https://feedback-board-good999.vercel.app", "--yes"]
+    assert "token" not in delivery.to_json().lower()
+
+
+def test_vercel_rollback_explicit_target_skips_lookup(monkeypatch, tmp_path):
     calls = []
 
     def fake_run(cmd, **kwargs):
@@ -199,20 +307,48 @@ def test_vercel_rollback_promotes_previous(monkeypatch, tmp_path):
             stderr="",
         )
 
+    monkeypatch.setattr("sembl_stack.adapters.deploy_vercel._resolve_vercel", lambda: ["vercel"])
+    monkeypatch.setattr("sembl_stack.adapters.deploy_vercel.subprocess.run", fake_run)
+
+    delivery = VercelDeployAdapter(timeout=5).rollback(
+        str(tmp_path), to="https://feedback-board.vercel.app")
+
+    assert delivery.status == "rolled_back"
+    assert calls == [["vercel", "rollback", "https://feedback-board.vercel.app", "--yes"]]
+
+
+def test_vercel_rollback_no_previous_deployment(monkeypatch, tmp_path):
+    calls = []
+
+    def fake_run(cmd, **kwargs):
+        calls.append(cmd)
+        return SimpleNamespace(
+            returncode=0,
+            stdout="https://feedback-board-onlyone.vercel.app\n",
+            stderr="",
+        )
+
+    monkeypatch.setattr("sembl_stack.adapters.deploy_vercel._resolve_vercel", lambda: ["vercel"])
     monkeypatch.setattr("sembl_stack.adapters.deploy_vercel.subprocess.run", fake_run)
 
     delivery = VercelDeployAdapter(timeout=5).rollback(str(tmp_path))
 
-    assert delivery.status == "rolled_back"
-    assert delivery.url == "https://feedback-board.vercel.app"
-    assert calls[0] == ["vercel", "rollback", "--yes"]
-    assert "token" not in delivery.to_json().lower()
+    assert delivery.status == "rollback_failed"
+    assert delivery.data["reason"] == "no previous production deployment found"
+    assert len(calls) == 1                # never attempts a rollback with nothing to target
 
 
 def test_vercel_rollback_records_failure(monkeypatch, tmp_path):
     def fake_run(cmd, **kwargs):
+        if cmd[1:] == ["ls", "--prod"]:
+            return SimpleNamespace(
+                returncode=0,
+                stdout="https://a.vercel.app\nhttps://b.vercel.app\n",
+                stderr="",
+            )
         return SimpleNamespace(returncode=1, stdout="", stderr="no previous deployment")
 
+    monkeypatch.setattr("sembl_stack.adapters.deploy_vercel._resolve_vercel", lambda: ["vercel"])
     monkeypatch.setattr("sembl_stack.adapters.deploy_vercel.subprocess.run", fake_run)
 
     delivery = VercelDeployAdapter(timeout=5).rollback(str(tmp_path))

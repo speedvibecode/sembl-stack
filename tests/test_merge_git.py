@@ -115,3 +115,22 @@ def test_merge_cli_refuses_block_verdict(tmp_path):
 
     assert result.exit_code != 0
     assert "refusing to merge a BLOCK" in result.output
+
+
+def test_merge_cli_loads_config_from_repo_not_cwd(tmp_path):
+    """`--repo` is commonly a different directory than CWD (orchestrating a target repo
+    from elsewhere) — a bare `--config sembl.stack.yaml` must still resolve against
+    `--repo` when there's no such file in CWD, instead of silently using built-in defaults.
+    Proven here by pointing `layers.merge` at a nonexistent adapter in the *repo's* config
+    only: the registry's unknown-adapter error surfaces iff that file was actually read."""
+    verdict_path = tmp_path / "verdict.json"
+    verdict_path.write_text(Verdict(status="PASS").to_json(), encoding="utf-8")
+    (tmp_path / "some.stack.yaml").write_text(
+        "layers: {merge: does-not-exist}\n", encoding="utf-8")
+
+    result = CliRunner().invoke(main, [
+        "merge", "--verdict", str(verdict_path), "--repo", str(tmp_path),
+        "--config", "some.stack.yaml",   # bare filename (no such file in CWD), not a path
+    ])
+
+    assert "Unknown merge adapter 'does-not-exist'" in result.output

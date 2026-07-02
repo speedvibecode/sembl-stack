@@ -87,6 +87,24 @@ def _read_delivery(path: str) -> Delivery:
     return artifact
 
 
+def _resolve_config(config_path: str, repo: str) -> str | None:
+    """Resolve --config: as given (CWD-relative) first, then <repo>/<config_path>.
+
+    `deploy`/`postdeploy` take `--repo` as a separate argument from CWD (orchestrating a
+    target repo from elsewhere is a supported use), but the bare default `sembl.stack.yaml`
+    only ever resolved against CWD — so pointing `--repo` at another repo silently loaded
+    no config (built-in defaults) instead of that repo's own layer/health contract, with no
+    error. Falling back to the repo dir closes that gap without changing the CWD-relative
+    behavior anyone already relies on.
+    """
+    if Path(config_path).is_file():
+        return config_path
+    repo_relative = Path(repo) / config_path
+    if repo_relative.is_file():
+        return str(repo_relative)
+    return None
+
+
 # --- full loop ----------------------------------------------------------------
 
 @click.group(invoke_without_command=True)
@@ -158,7 +176,7 @@ main.command(name="run")(_loop_cmd)   # alias
 def bounds(task_file, repo, spec, text, config_path, expand, hops, out):
     """L2: Task -> Bounds. Derive the scope contract from a spec."""
     task = _load_task(task_file, repo, spec, text)
-    cfg = load(config_path if Path(config_path).is_file() else None)
+    cfg = load(_resolve_config(config_path, repo))
     bnds = cfg.spec.plan(task)
     if expand:
         bnds = _expand_bounds(bnds, task.repo, cfg, hops)
@@ -199,7 +217,7 @@ def reconcile(specgraph_path, codegraph_path, live, repo, config_path, out):
         # Advisory, never a gate: a missing/failed code graph yields an empty graph -> UNKNOWN
         # report at exit 0 (the adapter already degrades internally). Never raise on CBM
         # absence — only genuinely contradictory input below is a usage error.
-        cfg = load(config_path if Path(config_path).is_file() else None)
+        cfg = load(_resolve_config(config_path, repo))
         code_graph = cfg.codegraph.code_graph(repo) if cfg.codegraph is not None else {}
     elif codegraph_path:
         code_graph = json.loads(Path(codegraph_path).read_text(encoding="utf-8-sig"))
@@ -242,7 +260,7 @@ def merge(repo, verdict_path, into, source, allow_warn, no_ff, config_path, out)
     if verdict.status not in ("PASS", "WARN"):
         raise click.UsageError(f"unsupported verdict status: {verdict.status}")
 
-    cfg = load(config_path if Path(config_path).is_file() else None)
+    cfg = load(_resolve_config(config_path, repo))
     record = cfg.merge.merge(repo, into=into, source=source, no_ff=no_ff)
     _emit(record, out)
     raise SystemExit(0 if record.status == "merged" else 1)
@@ -271,7 +289,7 @@ def deploy(repo, verdict_path, allow_warn, production, prebuilt, config_path, ou
     if verdict.status != "PASS" and verdict.status != "WARN":
         raise click.UsageError(f"unsupported verdict status: {verdict.status}")
 
-    cfg = load(config_path if Path(config_path).is_file() else None)
+    cfg = load(_resolve_config(config_path, repo))
     delivery = cfg.deploy.deploy(repo, production=production, prebuilt=prebuilt)
     _emit(delivery, out)
     raise SystemExit(0 if delivery.status == "deployed" else 1)
@@ -291,7 +309,7 @@ def deploy(repo, verdict_path, allow_warn, production, prebuilt, config_path, ou
 def postdeploy(delivery_path, health_path, timeout_s, do_rollback, repo, config_path, out):
     """L8: Delivery -> Verdict. Deterministic post-deploy health gate (+ optional rollback)."""
     delivery = _read_delivery(delivery_path)
-    cfg = load(config_path if Path(config_path).is_file() else None)
+    cfg = load(_resolve_config(config_path, repo))
     # health_path=None lets the adapter use its configured default (options.postdeploy.health_path
     # + expect_json payload contract); an explicit --health-path overrides per-call.
     verdict = cfg.postdeploy.verify(delivery, health_path=health_path, timeout_s=timeout_s)
@@ -331,7 +349,7 @@ def _expand_bounds(bnds, repo, cfg, hops):
 @click.option("--config", "config_path", default="sembl.stack.yaml")
 def context(repo, config_path):
     """L1: index the repo with the context graph and show its size + densest files."""
-    cfg = load(config_path if Path(config_path).is_file() else None)
+    cfg = load(_resolve_config(config_path, repo))
     g = cfg.context
     if g is None or not getattr(g, "available", lambda: False)():
         raise click.UsageError("no context adapter configured/available "
@@ -356,7 +374,7 @@ def context(repo, config_path):
 def execute(task_file, repo, text, bounds_path, feedback, config_path, out):
     """L3: Task+Bounds -> Change. Run the executor in a sandbox, capture the diff."""
     task = _load_task(task_file, repo, None, text)
-    cfg = load(config_path if Path(config_path).is_file() else None)
+    cfg = load(_resolve_config(config_path, repo))
     bnds = _read_bounds(bounds_path)
     sandbox = cfg.sandbox.open(task.repo)
     try:
