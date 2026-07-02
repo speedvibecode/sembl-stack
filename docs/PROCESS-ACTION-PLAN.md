@@ -263,6 +263,26 @@ decoupled (confirmed third-party backend bug). History below (spec `SPEC-coderab
 **Track 4 — RSI-L1 readout (cheap, high-narrative):** per-executor iters-to-green + cost over the
 corpus → the "measured selection" artifact. Advances the north star's first rung.
 
+**Deep-audit backlog (codex across-the-board review, 2026-07-02).** Fixed same-day: gate
+0.1.21 (contract self-edit BLOCK, traversal-safe paths, metadata lockstep) + stack hardening
+(run-id validation, loop failed-status persistence, CBM repo_path contract, Vercel structured
+failure, sembl+mcp as core deps, reviewer prompt treats diff as untrusted). Queued, in value order:
+1. **Verdict-to-source binding (L6.5)** — `merge`/`apply` accept any PASS verdict file; bind the
+   Verdict to the commit/diff hash it judged and verify at merge/apply time. Design work; the
+   next real hardening rung for the accountability story.
+2. **`apply` dirty-tree guard** — refuse (or warn) when the target tree is dirty / not at the
+   recorded base; `--check` exists but isn't required.
+3. **Gate: staged-diff mode for the pre-commit hook** — the hook currently gates the whole
+   worktree, not the commit being made.
+4. **Gate: case-insensitive path comparison on Windows** — case-only mismatches can false-flag
+   fabrication/out-of-scope; needs git-canonical paths, easy to get wrong, do deliberately.
+Rejected with rationale: diff redaction in run artifacts (the diff must round-trip for `apply`;
+`.sembl/` is local + gitignored — the gate's job is to CATCH a secret-bearing diff, not mask it);
+postdeploy URL restriction (the URL is our own deploy adapter's output on a local tool);
+`vendor/dist/build` generated-class (deliberate anti-false-alarm posture, forbidden_areas still
+wins — document, don't change); absolute `source` globs in gate adapter configs (user-authored
+config on a local CLI; the MCP server already runs with the user's own file access).
+
 **Back half (spine ✅ + quality axis ✅ — gated now on owner dogfood):** owner dogfoods the
 onboarded loop daily (starts the RSI-L1 feed) · Apache-2.0 relicense (both repos) · gate 0.2.0
 MCP ergonomics · MurphyScan deep audit · PyPI `sembl-stack` 0.1.0 + public site · breadth →
