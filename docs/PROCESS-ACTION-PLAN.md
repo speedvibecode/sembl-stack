@@ -76,7 +76,7 @@ repo) → TARGET (product, plane B)`, everything speaking **MCP** at the hub.
 | L4 Sandbox | contain | `Change → Change` | consume | ✅ disposable clone (alias worktree) |
 | L5 Verify (gate) | gate the diff | `Change+Bounds → Verdict` | **OWN gate** | ✅ green, sembl 0.1.20 |
 | L5.5 Reconcile (per-PR) | spec↔code drift | `SpecGraph+CodeGraph → Report` | INTEGRATE (advisory) | ✅ **live: `reconcile --live` drives a real CBM index** (landed 2026-06-22); flagship live-proof pending owner run |
-| L5.5 Quality review | code-quality signal | diff → findings | INTEGRATE (best-effort, decoupled from launch gate) | 🟡 **CLI installed + agent-integrated (Claude Code + Codex plugins) 2026-07-02, real contract wired; auth BLOCKED by a confirmed CodeRabbit backend bug** (org-list tRPC rejects a valid Bearer token, not fixable locally — bug filed) — mock+shell+2×2 thesis (gate_only=6/quality_only=1) stands as launch proof; `review: mock` stays default |
+| L5.5 Quality review | code-quality signal | diff → findings | BUILD (llm) + INTEGRATE (coderabbit, best-effort) | ✅ **REAL quality axis live 2026-07-02 via `review: llm`** (BYO agent-CLI reviewer, default `claude -p` on the operator's own login; real 2×2 green: gate_only=4/quality_only=3/both=2, 0 UNKNOWN) — CodeRabbit stays wired but auth-BLOCKED by a confirmed backend bug (bug filed, decoupled from launch); `review: mock` stays the no-AI preview default |
 | L6 Orchestrate+observe | loop/trace | wiring + `*→Trace` | consume | ✅ LangGraph + retry-on-BLOCK |
 | L6.5 Merge | gated merge | `Verdict(PASS) → MergeRecord` | OWN stage | ✅ **landed 2026-06-21** (PASS merges, BLOCK refused) |
 | L7 Deploy | ship | `Verdict(PASS) → Delivery` | INTEGRATE (own stage, delegate mechanism) | ✅ Vercel; flagship live |
@@ -241,6 +241,15 @@ flagship FIRST**; fan out to ~50 adapters only AFTER. Evidence ✅ done; spine 9
    third-party bug outside sembl's control; launch proceeds on the already-proven mock+shell+2×2
    thesis. `review: mock` stays the default; real-CLI wiring stays swap-ready, best-effort,
    revisited only if CodeRabbit fixes the bug or the owner buys Agentic-key credits.
+9. **`review: llm` — the way out (2026-07-02, same day).** Rather than wait on CodeRabbit, built
+   `LLMReviewAdapter` ("CodeRabbit at home", `review_llm.py`): drives a logged-in agent CLI the
+   operator already has — default `claude -p` on the operator's own OAuth session (never a
+   token), or `opencode` for cheap BYO models — with a strict reviewer prompt over the diff,
+   mapped onto the same ReviewReport contract (UNKNOWN on any failure, advisory, never blocks).
+   **Real 2×2 proven live** (`eval/two_axis.py --reviewer llm --model haiku`): 14/14 real
+   reviews, 0 UNKNOWN — gate_only=4, quality_only=3 (incl. planted case 14 AND runtime-break
+   case 13), both=2. The complementarity thesis now stands on a REAL reviewer, not just the
+   mock. CodeRabbit demoted to an optional second real reviewer if it ever unblocks.
 
 **Track 4 — RSI-L1 readout (cheap, high-narrative):** per-executor iters-to-green + cost over the
 corpus → the "measured selection" artifact. Advances the north star's first rung.

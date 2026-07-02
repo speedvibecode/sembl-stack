@@ -19,6 +19,7 @@ from .adapters.verify_sembl import SemblVerifyAdapter
 from .adapters.codegraph_cbm import CbmCodeGraph
 from .adapters.review_mock import MockReviewAdapter
 from .adapters.review_coderabbit import CodeRabbitReviewAdapter
+from .adapters.review_llm import LLMReviewAdapter
 from .contextgraph import SymgraphGraph
 
 # layer -> { adapter name -> factory(transport, mcp_server, opts) }
@@ -58,6 +59,9 @@ _REGISTRY: dict[str, dict[str, object]] = {
         "mock": lambda t, s, o: MockReviewAdapter(),
         "coderabbit": lambda t, s, o: CodeRabbitReviewAdapter(
             binary=o.get("binary", "coderabbit"), timeout=o.get("timeout", 600)),
+        "llm": lambda t, s, o: LLMReviewAdapter(          # BYO agent CLI (claude/opencode)
+            binary=o.get("binary", "claude"), model=o.get("model"),
+            timeout=o.get("timeout", 600)),
     },
     "merge": {
         "git": lambda t, s, o: GitMergeAdapter(timeout=o.get("timeout", 300)),

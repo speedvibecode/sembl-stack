@@ -59,8 +59,9 @@
 
 **Best-effort (ship without if behind, never slips the date):** breadth toward 30-40 adapters;
 Sentry/observability + rate-limits; flagship CI gate; **real CodeRabbit 2×2** (swap in the moment
-auth is unblocked — mock + shell + 2×2 thesis already stands on its own as proof of
-complementarity).
+auth is unblocked — no longer load-bearing: **`review: llm` delivered the REAL quality axis
+2026-07-02** — BYO agent-CLI reviewer (`claude -p` / opencode), real 2×2 green
+(gate_only=4, quality_only=3, both=2, 0 UNKNOWN on 14/14 live reviews)).
 
 ## 3. Day-by-day (~July 1 → 14, heavily parallelized)
 - **Jul 1-2** — merge → master; **open CodeRabbit trial** (done; real auth backend-blocked, bug

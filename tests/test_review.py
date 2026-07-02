@@ -144,6 +144,93 @@ def test_coderabbit_unknown_on_oserror(monkeypatch):
     assert r.status == "UNKNOWN"
 
 
+def test_llm_unknown_when_binary_missing(monkeypatch):
+    from sembl_stack.adapters.review_llm import LLMReviewAdapter
+    monkeypatch.setattr("sembl_stack.adapters.review_llm.shutil.which", lambda b: None)
+    r = LLMReviewAdapter().review(_N1)
+    assert r.status == "UNKNOWN" and "not installed" in r.data["reason"]
+
+
+def test_llm_pipes_prompt_with_diff_on_stdin(monkeypatch):
+    """Default engine is `claude -p` with the reviewer prompt (diff embedded) on STDIN —
+    argv would hit the Windows ~32K limit on real diffs."""
+    from types import SimpleNamespace
+    from sembl_stack.adapters.review_llm import LLMReviewAdapter
+    monkeypatch.setattr("sembl_stack.adapters.review_llm.shutil.which", lambda b: "claude.exe")
+    seen = {}
+
+    def fake_run(cmd, **kwargs):
+        seen["cmd"], seen["stdin"] = cmd, kwargs.get("input")
+        return SimpleNamespace(returncode=0, stdout='{"findings": []}', stderr="")
+
+    monkeypatch.setattr("sembl_stack.adapters.review_llm.subprocess.run", fake_run)
+    r = LLMReviewAdapter(model="claude-haiku-4-5-20251001").review(_N1)
+    assert r.status == "CLEAN"
+    assert seen["cmd"][0] == "claude.exe" and "-p" in seen["cmd"]
+    assert seen["cmd"][seen["cmd"].index("--model") + 1] == "claude-haiku-4-5-20251001"
+    assert _N1 in seen["stdin"] and "code reviewer" in seen["stdin"]
+
+
+def test_llm_parses_findings_even_inside_markdown_fences(monkeypatch):
+    """Models ignore the no-fence rule; the parser must still find the JSON."""
+    from types import SimpleNamespace
+    from sembl_stack.adapters.review_llm import LLMReviewAdapter
+    monkeypatch.setattr("sembl_stack.adapters.review_llm.shutil.which", lambda b: "claude.exe")
+    reply = ('Here is my review:\n```json\n{"findings": [{"severity": "warn", '
+             '"kind": "n_plus_one", "file": "src/orders.js", "message": "query in loop"}]}\n```')
+    monkeypatch.setattr("sembl_stack.adapters.review_llm.subprocess.run",
+                        lambda *a, **k: SimpleNamespace(returncode=0, stdout=reply, stderr=""))
+    r = LLMReviewAdapter().review(_N1)
+    assert r.status == "FINDINGS" and r.findings[0]["kind"] == "n_plus_one"
+
+
+def test_llm_unknown_on_prose_reply_never_false_clean(monkeypatch):
+    """A reply with no parsable findings JSON is UNKNOWN, not CLEAN — and the raw model
+    output (which may quote the diff) is fingerprinted, never persisted."""
+    from types import SimpleNamespace
+    from sembl_stack.adapters.review_llm import LLMReviewAdapter
+    monkeypatch.setattr("sembl_stack.adapters.review_llm.shutil.which", lambda b: "claude.exe")
+    monkeypatch.setattr("sembl_stack.adapters.review_llm.subprocess.run",
+                        lambda *a, **k: SimpleNamespace(
+                            returncode=0, stdout="Looks fine to me! secret_ghp_LEAK", stderr=""))
+    r = LLMReviewAdapter().review(_N1)
+    assert r.status == "UNKNOWN"
+    assert "secret_ghp_LEAK" not in r.to_json()
+
+
+def test_llm_unknown_on_nonzero_exit_and_timeout(monkeypatch):
+    import subprocess
+    from types import SimpleNamespace
+    from sembl_stack.adapters.review_llm import LLMReviewAdapter
+    monkeypatch.setattr("sembl_stack.adapters.review_llm.shutil.which", lambda b: "claude.exe")
+    monkeypatch.setattr("sembl_stack.adapters.review_llm.subprocess.run",
+                        lambda *a, **k: SimpleNamespace(returncode=1, stdout="", stderr="rate limit"))
+    assert LLMReviewAdapter().review(_N1).status == "UNKNOWN"
+
+    def boom(*a, **k):
+        raise subprocess.TimeoutExpired(cmd="claude", timeout=1)
+
+    monkeypatch.setattr("sembl_stack.adapters.review_llm.subprocess.run", boom)
+    assert LLMReviewAdapter().review(_N1).status == "UNKNOWN"
+
+
+def test_llm_empty_diff_is_clean_without_spending_tokens(monkeypatch):
+    from sembl_stack.adapters.review_llm import LLMReviewAdapter
+
+    def boom(*a, **k):
+        raise AssertionError("must not invoke the CLI on an empty diff")
+
+    monkeypatch.setattr("sembl_stack.adapters.review_llm.subprocess.run", boom)
+    assert LLMReviewAdapter().review("   \n").status == "CLEAN"
+
+
+def test_llm_registered_as_review_adapter():
+    from sembl_stack.registry import build, names
+    assert "llm" in names("review")
+    adapter = build("review", "llm", "stdio", [], {"model": "claude-haiku-4-5-20251001"})
+    assert adapter.model == "claude-haiku-4-5-20251001"
+
+
 def test_review_report_round_trips():
     from sembl_stack.artifacts import from_dict
     rep = ReviewReport(reviewer="mock", status="FINDINGS",
