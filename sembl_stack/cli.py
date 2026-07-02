@@ -108,9 +108,11 @@ def _resolve_config(config_path: str, repo: str) -> str | None:
 # --- full loop ----------------------------------------------------------------
 
 @click.group(invoke_without_command=True)
+@click.option("--reconfigure", is_flag=True,
+              help="Run first-time onboarding again before opening the stage rail.")
 @click.version_option()
 @click.pass_context
-def main(ctx):
+def main(ctx, reconfigure):
     """sembl-stack — an open, swappable spec-driven coding factory.
 
     Run bare (no subcommand) to launch the guided TUI wizard (New/Existing -> stage rail,
@@ -118,11 +120,20 @@ def main(ctx):
     """
     if ctx.invoked_subcommand is not None:
         return
-    from . import wizard
+    from . import onboarding, profile, wizard
+    needs_onboarding = reconfigure or profile.load() is None
+    if needs_onboarding and not onboarding.available():
+        raise click.UsageError(
+            "the guided TUI needs Textual - `pip install \"sembl-stack[tui]\"`.\n"
+            "  (or run a stage directly, e.g. `sembl-stack loop task.yaml`)")
     if not wizard.available():
         raise click.UsageError(
             "the guided TUI needs Textual — `pip install \"sembl-stack[tui]\"`.\n"
             "  (or run a stage directly, e.g. `sembl-stack loop task.yaml`)")
+    if needs_onboarding:
+        configured = onboarding.launch(".")
+        if configured is None:
+            return
     wizard.launch(".")
 
 
@@ -131,7 +142,16 @@ def main(ctx):
 def _loop_cmd(task_file: str, config_path: str):
     """Run the full wiring: plan -> execute -> verify (retry on BLOCK)."""
     task = _load_task(task_file, None, None, None)
-    cfg = load(config_path if Path(config_path).is_file() else None)
+    cfg_file = config_path if Path(config_path).is_file() else None
+    overrides = None
+    if cfg_file is None:                 # no repo config: the onboarded profile is the default
+        from . import profile as profile_mod
+        prof = profile_mod.load()
+        if prof is not None:
+            overrides = profile_mod.to_stack_overrides(prof)
+            click.echo(f"(no {config_path} — using your profile: "
+                       f"runner={prof.runner}, executor={prof.executor})")
+    cfg = load(cfg_file, overrides)
     click.echo(f"layers: {cfg.raw['layers']}")
     click.echo(f"task: {task.text!r}\nrepo: {task.repo}\n")
 

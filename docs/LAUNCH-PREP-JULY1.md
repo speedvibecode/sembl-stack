@@ -12,6 +12,11 @@
 > big-bang timing, the CodeRabbit hard-gate) sits *on top* of "clean + usable", never in place of
 > it. If a hard gate disappoints, slipping/de-scoping it is fine; shipping something rough is not.
 > We move fast — this is a ~2-week big-bang, not a quarter — but unhurried where it matters.
+>
+> **Dates are sequence markers, not deadlines (owner, 2026-07-02):** every date below reads as
+> "roughly, in this order" — earlier or later is fine and needs no re-plan. The checklist gates
+> the launch; the calendar never does. **Roster change (owner, 2026-07-02): agy is OUT of the
+> execution roster** — mechanical builds go to **codex (GPT-5.5, medium/xhigh) or Claude directly**.
 
 ## 0. Locked decisions (the consensus)
 
@@ -42,8 +47,11 @@
 - **Gotchas:** comment out the CBM MCP block before running **codex** (it wedges); pytest
   `--basetemp` must be OFF the repo tree; venv has no pip (use `uv pip install`,
   `.venv\Scripts\python.exe`); **agy needs a TTY** (owner runs it foreground).
-- **Agent roster:** Claude = pin/review/QA + the credential path. **agy** (Gemini-3.5-Flash) =
-  mechanical builds from pinned specs (breadth, screens). **codex** (GPT-5.5) = tough + review.
+- **Agent roster (revised 2026-07-02):** Claude = pin/review/QA + the credential path + direct
+  builds. **codex** (GPT-5.5, medium for mechanical / xhigh for tough) = builds from pinned specs
+  + cross-review. agy retired from the roster (TTY-only was the friction).
+  Codex gotcha on this box: disable MCP per-invocation with `-c 'mcp_servers={}'` (the CBM
+  server wedges it); prompt via stdin (`codex exec ... - < prompt.md`).
 - **First action, July 1:** (a) merge `ws2-through-deploy-spine` → master; (b) **open the
   CodeRabbit trial** — done 2026-07-02, but see decision #8: real auth is backend-blocked and
   **no longer the hard gate**; do not let it hold up anything else.
@@ -79,7 +87,13 @@ auth is unblocked — no longer load-bearing: **`review: llm` delivered the REAL
 - **Jul 14 — LAUNCH:** fire every channel.
 
 ## 4. Workstreams (pinned-spec status)
-- **WS-C onboarding + BYO-keys** — **[spec pinned: [SPEC-tui-phase1-onboarding.md](SPEC-tui-phase1-onboarding.md)]** (revised to the BYO stance).
+- **WS-C onboarding + BYO-keys** — **BUILT 2026-07-02** from [SPEC-tui-phase1-onboarding.md](SPEC-tui-phase1-onboarding.md):
+  `profile.py` credential core (Claude-built: pointer-only `key_source` enforced on save AND load,
+  presence-only detection, per-runner preflight) + `onboarding.py` Textual screens (codex-built,
+  Claude-reviewed) + bare-CLI wiring (`--reconfigure`) + profile-as-default for `loop` when the
+  repo has no `sembl.stack.yaml` (explicit file always wins). 111 committed + 52 local tests green;
+  live smoke: real detect -> claude-login preselect -> preflight -> profile on disk, no secret.
+  Remaining polish: rail-side "run under profile" once the rail shells real stages (Phase 2).
 - **WS-B CodeRabbit real** — **[spec pinned: [SPEC-coderabbit-prep.md](SPEC-coderabbit-prep.md)]** — **decoupled from the launch gate 2026-07-02** (real auth backend-blocked, bug reported to CodeRabbit); best-effort, revisit if/when unblocked.
 - **WS-H breadth recipe**, **gate-0.2.0 mini-spec**, **site/proof spec**, **MurphyScan run-plan**,
   **RSI-L1 readout** — **[pin on request]**: say the word and Claude pins these so July 1 is zero-spec-writing.

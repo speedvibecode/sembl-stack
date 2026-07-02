@@ -45,10 +45,14 @@ def _merge(base: dict, over: dict) -> dict:
     return out
 
 
-def load(path: str | None) -> StackConfig:
-    cfg = dict(DEFAULTS)
+def load(path: str | None, overrides: dict | None = None) -> StackConfig:
+    """Resolve DEFAULTS < overrides < file. `overrides` is where the onboarding profile
+    plugs in (profile.to_stack_overrides) — passed explicitly by the caller, never read
+    from global state here, so resolution stays deterministic and testable. An explicit
+    sembl.stack.yaml always wins over a profile."""
+    cfg = _merge(DEFAULTS, overrides or {})
     if path and Path(path).is_file():
-        cfg = _merge(DEFAULTS, yaml.safe_load(Path(path).read_text(encoding="utf-8")) or {})
+        cfg = _merge(cfg, yaml.safe_load(Path(path).read_text(encoding="utf-8")) or {})
 
     layers = cfg["layers"]
     tr = cfg["transport"]
