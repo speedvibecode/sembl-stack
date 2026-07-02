@@ -56,9 +56,60 @@ def test_coderabbit_parses_findings(monkeypatch):
     assert r.status == "FINDINGS" and r.findings[0]["kind"] == "n_plus_one"
 
 
+def test_coderabbit_invokes_real_agent_review_shape(monkeypatch):
+    """The real CLI has no stdin/diff flag (confirmed via `coderabbit review --help`) -- it
+    only reviews git working-tree state. review() must materialize the diff into a throwaway
+    repo and invoke `coderabbit review --agent --type uncommitted --dir <tmp>`."""
+    from types import SimpleNamespace
+    monkeypatch.setattr("sembl_stack.adapters.review_coderabbit.shutil.which", lambda b: "cr.exe")
+    calls = []
+
+    def fake_run(cmd, **kwargs):
+        calls.append(cmd)
+        if cmd[0] == "git":
+            return SimpleNamespace(returncode=0, stdout="", stderr="")
+        return SimpleNamespace(returncode=0, stdout=json.dumps({"findings": []}), stderr="")
+
+    monkeypatch.setattr("sembl_stack.adapters.review_coderabbit.subprocess.run", fake_run)
+    r = CodeRabbitReviewAdapter().review(_CLEAN)
+
+    assert r.status == "CLEAN"
+    final = calls[-1]
+    assert final[0] == "cr.exe"
+    assert final[1] == "review"
+    assert "--agent" in final and "--dir" in final
+    assert final[final.index("--type") + 1] == "uncommitted"
+
+
+def test_coderabbit_unknown_when_diff_does_not_apply(monkeypatch):
+    from types import SimpleNamespace
+    monkeypatch.setattr("sembl_stack.adapters.review_coderabbit.shutil.which", lambda b: "cr.exe")
+
+    def fake_run(cmd, **kwargs):
+        if cmd[0] == "git" and "apply" in cmd:
+            return SimpleNamespace(returncode=1, stdout="", stderr="patch does not apply")
+        return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr("sembl_stack.adapters.review_coderabbit.subprocess.run", fake_run)
+    r = CodeRabbitReviewAdapter().review("not a real diff")
+    assert r.status == "UNKNOWN"
+    assert "did not apply" in r.data["reason"]
+
+
 def test_coderabbit_unknown_on_bad_json():
     assert _parse("not json").status == "UNKNOWN"
     assert _parse("").status == "UNKNOWN"
+
+
+def test_coderabbit_unknown_on_error_envelope_not_false_clean():
+    """Live-proof finding: an unauthenticated run prints {"type":"error",...} on stdout with
+    no "findings" key -- must not be misread as CLEAN (a false-clean would silently blind the
+    quality axis while looking healthy)."""
+    payload = json.dumps({"type": "error", "phase": "auth",
+                          "status": "environment_unsupported", "message": "sign in again"})
+    r = _parse(payload)
+    assert r.status == "UNKNOWN"
+    assert r.data["reason"] == "sign in again"
 
 
 def test_coderabbit_redacts_unparseable_stdout():

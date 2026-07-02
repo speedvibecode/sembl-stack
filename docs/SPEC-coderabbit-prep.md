@@ -2,11 +2,58 @@
 
 > **STATUS: ✅ PREP COMPLETE & GREEN (2026-06-22)** — agy-built from this spec, reviewed +
 > re-verified by Claude (59 passed; 2×2 gate_only=6/quality_only=1). The mock + shell + planted
-> case + 2×2 eval are landed and swap-ready. **The real CodeRabbit trial is deferred to
-> ~2026-07-02** (owner takes up another project, then vacation). RESUME HERE on day 1: open the
-> trial, finalize the real CLI subcommand/JSON in `review_coderabbit.py` (currently PROVISIONAL),
-> swap `review: mock` → `review: coderabbit`, then spend all 14 days on the 2×2 proof. **Do NOT
-> open the account before then.**
+> case + 2×2 eval are landed and swap-ready.
+>
+> **UPDATE 2026-07-02 — real CLI installed + agent-integrated, real auth still BLOCKED.**
+> Trial account open (org `speedvibecode`). No official Windows CLI build exists yet, so
+> installed via the unofficial native port [Sukarth/CodeRabbit-Windows](https://github.com/Sukarth/CodeRabbit-Windows)
+> (decompiles+recompiles the official Linux binary locally with Bun; verified script contents
+> before running, same auth/API endpoints as official) → `coderabbit` v0.6.4 on PATH,
+> `coderabbit doctor` all-green except auth. Installed the **official Claude Code plugin**
+> (`coderabbit@claude-plugins-official` v1.1.1, via `claude plugin marketplace update && claude
+> plugin install coderabbit` — skills: autofix/code-review/coderabbit-review, agent:
+> code-reviewer) and confirmed the **Codex plugin** is already bundled+enabled
+> (`coderabbit@openai-curated`). Both drive the same `coderabbit` binary.
+>
+> Real CLI contract (confirmed via `coderabbit review --help` on the installed binary) has **no
+> stdin/diff input** — only `--dir`/`--base`/`-t,--type all|committed|uncommitted` against real
+> git working-tree state. This diverges from the original provisional `--stdin` design.
+> `review_coderabbit.py` is rewired: `review(diff)` now materializes the diff into a throwaway
+> git repo (`git init` + empty base commit + `git apply`) and runs `coderabbit review --agent
+> --type uncommitted --dir <tmp>`, keeping the `ReviewAdapter` protocol diff-based (mock + the
+> git-free 2×2 corpus eval untouched). A real bug was caught live: an unauthenticated run prints
+> `{"type":"error",...}` to **stdout** with no `"findings"` key — the old parser silently read
+> that as CLEAN (false-clean); fixed to special-case `type == "error"` → UNKNOWN. 129 tests
+> green (128 + 1 regression test for the false-clean bug).
+>
+> **UPDATE 2026-07-02 (cont'd) — root-caused via decompiled source, not port-specific, DECOUPLED
+> from the launch gate.** Two distinct bugs, both traced by decompiling the official CLI (same
+> Bun-decompile pipeline the Windows port itself uses — pure read-only source inspection, no
+> account/network state touched):
+> 1. **Client-side, Windows-generic (fixed with a free env var):** `UZ()`'s environment
+>    detection (`_F0()`) checks only `$DISPLAY`/`$WAYLAND_DISPLAY`/`xdg-open` — Linux-desktop-only
+>    signals, zero `process.platform` check in the whole bundle — so it always evaluates
+>    `isHeadless=true` on Windows (official build too, not just this port), disabling the working
+>    localhost-callback flow and forcing the broken `coderabbit-cli://` fallback. Setting
+>    `$env:DISPLAY` to any truthy value fixes this — confirmed live (`authUrl` correctly switches
+>    to `redirect_uri=http://127.0.0.1:<port>/callback`).
+> 2. **Server-side, NOT fixable locally (the real blocker):** even via the correct localhost
+>    callback, `RG.fetchOrganizations()`'s tRPC client (`j6()`) correctly sends
+>    `Authorization: Bearer <accessToken>` — no cookie logic exists anywhere in the client (zero
+>    matches for "cookie" in the 1.4MB bundle). The **server** still rejects the validly
+>    Bearer-authenticated `organizations.getAllOrgs`/`getAllOrgsForWorkspace` call, demanding a
+>    cookie session — a CodeRabbit backend bug/regression, confirmed reproducible identically via
+>    both callback transports. Bug report filed with CodeRabbit (traced request/response,
+>    root-caused down to the header logic). A paid Agentic API key uses a different auth header
+>    entirely and may sidestep it, but that's an unverified guess pending a purchase decision.
+>
+> **Owner decision 2026-07-02: CodeRabbit is DECOUPLED from the launch hard-gate**
+> ([LAUNCH-PREP-JULY1.md](LAUNCH-PREP-JULY1.md) decision #8) — this is now a confirmed
+> third-party backend bug outside sembl's control, not something more engineering time here can
+> fix. Launch proceeds on the already-proven mock + shell + 2×2 thesis (gate_only=6,
+> quality_only=1). `review: mock` stays the default in `config.py`; real-CLI wiring
+> (`review_coderabbit.py`) stays swap-ready and best-effort — revisit only if CodeRabbit fixes
+> the backend bug or the owner decides to buy Agentic-key credits.
 
 > Pinned, owner-authored spec for agy. Implement EXACTLY. Mirror the **reconcile-live** work
 > (`sembl_stack/adapters/codegraph_cbm.py`, the `codegraph` registry layer, the `reconcile`

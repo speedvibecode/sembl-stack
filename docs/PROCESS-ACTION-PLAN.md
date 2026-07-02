@@ -76,17 +76,19 @@ repo) → TARGET (product, plane B)`, everything speaking **MCP** at the hub.
 | L4 Sandbox | contain | `Change → Change` | consume | ✅ disposable clone (alias worktree) |
 | L5 Verify (gate) | gate the diff | `Change+Bounds → Verdict` | **OWN gate** | ✅ green, sembl 0.1.20 |
 | L5.5 Reconcile (per-PR) | spec↔code drift | `SpecGraph+CodeGraph → Report` | INTEGRATE (advisory) | ✅ **live: `reconcile --live` drives a real CBM index** (landed 2026-06-22); flagship live-proof pending owner run |
-| L5.5 Quality review | code-quality signal | diff → findings | INTEGRATE | 🟡 **prep complete (mock + shell + 2×2, landed 2026-06-22)**; real CodeRabbit wiring deferred to ~2026-07-02 (owner on another project + vacation) |
+| L5.5 Quality review | code-quality signal | diff → findings | INTEGRATE (best-effort, decoupled from launch gate) | 🟡 **CLI installed + agent-integrated (Claude Code + Codex plugins) 2026-07-02, real contract wired; auth BLOCKED by a confirmed CodeRabbit backend bug** (org-list tRPC rejects a valid Bearer token, not fixable locally — bug filed) — mock+shell+2×2 thesis (gate_only=6/quality_only=1) stands as launch proof; `review: mock` stays default |
 | L6 Orchestrate+observe | loop/trace | wiring + `*→Trace` | consume | ✅ LangGraph + retry-on-BLOCK |
 | L6.5 Merge | gated merge | `Verdict(PASS) → MergeRecord` | OWN stage | ✅ **landed 2026-06-21** (PASS merges, BLOCK refused) |
 | L7 Deploy | ship | `Verdict(PASS) → Delivery` | INTEGRATE (own stage, delegate mechanism) | ✅ Vercel; flagship live |
-| L8 Verify-in-prod | gate prod | `Delivery → Verdict` | **OWN gate** | ✅ health/payload gate + **rollback trigger** (landed 2026-06-21) |
+| L8 Verify-in-prod | gate prod | `Delivery → Verdict` | **OWN gate** | ✅ health/payload gate + **rollback trigger, live-proven 2026-07-01** |
 
 **Depth-1 spine = 11/11** (all stages wired). The L5.5 quality slot is **prepped to swap-ready**
 (mock reviewer + CodeRabbit subprocess shell + planted case 14 + 2×2 eval, all green) — only the
 real CodeRabbit CLI wiring remains, **deliberately deferred to ~2026-07-02** (owner takes up
 another project, then vacation). Also pending: the flagship live-proof of reconcile-live (owner run).
-*(L8 rollback closed 2026-06-21; reconcile-live closed 2026-06-22; CodeRabbit prep closed 2026-06-22.)*
+*(L8 rollback closed 2026-06-21, live-proven against the real flagship 2026-07-01 — see §9 track 1
+item 1 for the 4 real bugs the live run found + fixed; reconcile-live closed 2026-06-22; CodeRabbit
+prep closed 2026-06-22.)*
 
 ## 4. The metric (O3) and current evidence
 Full computable spec: `eval-metric-O3.md`. One-line claim: *with the gate in the loop, fewer bad
@@ -166,6 +168,18 @@ flagship FIRST**; fan out to ~50 adapters only AFTER. Evidence ✅ done; spine 9
    `b43b396`). Post-deploy `BLOCK` fires `VercelDeployAdapter.rollback` via opt-in `postdeploy
    --rollback`; outcome recorded in `verdict.raw["rollback"]`; gate stays mechanism-free. 4 new
    deterministic tests (mock promote + urlopen), 81 passed / 1 skipped.
+   **Flagship LIVE-PROOF done 2026-07-01** (real prod break → real BLOCK → real Vercel rollback →
+   real recovery, against `sembl-flagship-feedback-board.vercel.app`). The mocked tests never
+   exercised the real Vercel CLI/Windows path — the live run surfaced 4 real bugs, now fixed +
+   covered by new deterministic tests (125 passed): (a) `vercel` resolves to a Windows `.cmd`
+   shim — bare `subprocess.run(["vercel", ...])` raised `FileNotFoundError`; (b) bare `vercel
+   rollback` (no target) only reports rollback *status* on current CLI — it never rolled back;
+   `rollback()` now auto-resolves the previous production deployment via `vercel ls --prod` and
+   targets it explicitly; (c) `--config` defaulted relative to CWD, not `--repo` — running
+   `postdeploy` against a repo other than CWD silently skipped its `expect_json` health contract;
+   `deploy`/`postdeploy` now fall back to `<repo>/sembl.stack.yaml`; (d) `_last_url` picked a
+   `vercel.com` dashboard / `api.vercel.com` link over the real `*.vercel.app` deployment URL —
+   now prefers the `.vercel.app` host. See `sembl_stack/adapters/deploy_vercel.py` + `cli.py`.
 2. ~~**Reconcile-live (S9)**~~ — ✅ **DONE 2026-06-22** (`docs/SPEC-reconcile-live.md`, commit
    `53ad50c`). New `CbmCodeGraph` adapter drives codebase-memory-mcp headlessly behind a
    `codegraph` layer; `reconcile --live --repo` builds the graph from a real CBM index (no
@@ -193,10 +207,40 @@ flagship FIRST**; fan out to ~50 adapters only AFTER. Evidence ✅ done; spine 9
    has a real N+1 defect the reviewer flags.
 7. ✅ **The 2×2 eval** (`eval/two_axis.py`) — verified **gate_only=6, quality_only=1, both=0** ⇒
    each catches what the other misses, **complementary, not redundant.**
-   → *Items 5–7 done. Opening the CodeRabbit trial is **deliberately deferred to ~2026-07-02***
-   *(owner takes up another project first, then vacation). On day 1: swap the mock for the real*
-   *CLI (finalize the subcommand/JSON shape in `review_coderabbit.py`) and spend all 14 days on*
-   *the 2×2 proof. **Do NOT open the account before then.***
+8. 🟡 **2026-07-02 — real CLI installed + agent-integrated, real auth BLOCKED.** Trial account
+   open (org `speedvibecode`). No official Windows build exists yet; installed via the
+   unofficial native port [Sukarth/CodeRabbit-Windows](https://github.com/Sukarth/CodeRabbit-Windows)
+   (decompiles+recompiles the official Linux binary locally with Bun — script contents verified
+   before running) → `coderabbit` v0.6.4, `doctor` all-green except auth. Installed the
+   **official Claude Code plugin** (`coderabbit@claude-plugins-official` v1.1.1 via `claude
+   plugin marketplace update && claude plugin install coderabbit`) and confirmed the **Codex
+   plugin** is bundled+enabled (`coderabbit@openai-curated`) — both drive the same CLI binary.
+   Real CLI contract (`coderabbit review --help`) has **no stdin/diff input**, only
+   `--dir`/`--base`/`--type all|committed|uncommitted` against real git state — diverges from
+   the original provisional `--stdin` design. Rewired `review_coderabbit.py`: `review(diff)`
+   materializes the diff into a throwaway git repo (init + empty base commit + `git apply`)
+   then runs `coderabbit review --agent --type uncommitted --dir <tmp>`, keeping the
+   `ReviewAdapter` protocol diff-based (mock + the git-free 2×2 corpus untouched). **Live smoke
+   test caught a real bug**: an unauthenticated run prints `{"type":"error",...}` to stdout with
+   no `"findings"` key — old parser silently read that as CLEAN (false-clean); fixed to
+   special-case `type == "error"` → UNKNOWN. 129 tests green (128 + 1 regression test).
+   **Real auth still blocked — root-caused by decompiling the official CLI (read-only source
+   trace, same Bun-decompile pipeline the Windows port uses), NOT port-specific.** Two distinct
+   bugs found: (1) client-side, Windows-generic — `UZ()`'s environment detection checks only
+   `$DISPLAY`/`xdg-open` (Linux-desktop-only, zero `process.platform` check anywhere in the
+   bundle), always reporting headless on Windows and forcing the broken `coderabbit-cli://`
+   fallback instead of the working localhost-callback server; fixed free with `$env:DISPLAY=1`
+   (confirmed live: `authUrl` correctly switches to `http://127.0.0.1:<port>/callback`).
+   (2) **server-side, not fixable locally** — even via the correct localhost callback, the tRPC
+   client (`j6()`) correctly sends `Authorization: Bearer <accessToken>` (zero cookie logic
+   anywhere in the client), but CodeRabbit's backend still rejects the org-listing call
+   (`organizations.getAllOrgs`/`getAllOrgsForWorkspace`) demanding a cookie session — a genuine
+   CodeRabbit backend bug/regression. Bug report filed with CodeRabbit (full trace, root-caused
+   to the header logic). **Owner decision 2026-07-02: DECOUPLED CodeRabbit from the launch
+   hard-gate** ([LAUNCH-PREP-JULY1.md](LAUNCH-PREP-JULY1.md) decision #8) — this is a confirmed
+   third-party bug outside sembl's control; launch proceeds on the already-proven mock+shell+2×2
+   thesis. `review: mock` stays the default; real-CLI wiring stays swap-ready, best-effort,
+   revisited only if CodeRabbit fixes the bug or the owner buys Agentic-key credits.
 
 **Track 4 — RSI-L1 readout (cheap, high-narrative):** per-executor iters-to-green + cost over the
 corpus → the "measured selection" artifact. Advances the north star's first rung.

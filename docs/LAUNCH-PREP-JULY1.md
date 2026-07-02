@@ -24,7 +24,7 @@
 | 5 | Target date | **~July 14** (≈2 weeks; checklist-gated, not calendar-gated) |
 | 6 | Try-it scope | **Local loop (spec→gate→merge) = the try-path; through-deploy = showcase** (BYO-deploy documented) |
 | 7 | Showcase | **Polish the existing flagship feedback board** (real, deployed, gated, auth-fixed) |
-| 8 | CodeRabbit | **HARD GATE — prove the REAL 2×2 before launch** ⇒ trial opens **July 1, first thing**; mock is the instant fallback |
+| 8 | CodeRabbit | **DECOUPLED from the launch gate (2026-07-02)** — trial opened, CLI installed + Claude/Codex agent-integrated, but real auth is blocked by a confirmed CodeRabbit **backend** bug (org-listing tRPC procedure rejects a valid OAuth Bearer token, demanding a cookie session — traced to the wire, bug report filed). Outside sembl's control; launch proceeds on the already-proven **mock + shell + 2×2 thesis** (gate_only=6, quality_only=1). Real-CLI proof becomes an opportunistic enhancement, swapped in the moment CodeRabbit fixes it or a paid Agentic key is purchased — never a blocker. |
 | 9 | Beta model | **Rolling QA pass ~3-4 days** (recruit early, onboard when try-it is green) |
 | 10 | Merge | **Merge the reviewed spine to master now**; all WS branch off master |
 | 11 | Versions | **sembl-stack `0.1.0`** at launch; **gate → `0.2.0`** (IDE/MCP milestone) |
@@ -45,26 +45,29 @@
 - **Agent roster:** Claude = pin/review/QA + the credential path. **agy** (Gemini-3.5-Flash) =
   mechanical builds from pinned specs (breadth, screens). **codex** (GPT-5.5) = tough + review.
 - **First action, July 1:** (a) merge `ws2-through-deploy-spine` → master; (b) **open the
-  CodeRabbit trial** (it's the hard gate on a 14-day clock — day-1 or bust).
+  CodeRabbit trial** — done 2026-07-02, but see decision #8: real auth is backend-blocked and
+  **no longer the hard gate**; do not let it hold up anything else.
 
 ## 2. Hard-gate checklist for ~July 14 (all must be green)
 1. Spine merged to master; sembl-stack `0.1.0` + gate `0.2.0` cut.
 2. **Onboarding + BYO-keys** flow is the make-or-break first 60s — smooth, env-only, auto-detect, no secret persisted.
-3. **Real CodeRabbit 2×2** demonstrated (gate-only > 0 AND quality-only > 0 with the real CLI).
-4. **MurphyScan**: no open P0 on flagship or orchestrator (P1 triaged).
-5. **Public site** live with the asciinema proof + gate-catch + WITH/WITHOUT numbers + hosted/teams waitlist.
-6. **Stranger-runnable proof**: fresh-env `pip install sembl-stack` → onboarding → one gated loop, by someone who's never seen it.
-7. **Design-partner QA pass** done; embarrassing friction fixed.
-8. **Apache-2.0** relicensing landed.
+3. **MurphyScan**: no open P0 on flagship or orchestrator (P1 triaged).
+4. **Public site** live with the asciinema proof + gate-catch + WITH/WITHOUT numbers + hosted/teams waitlist.
+5. **Stranger-runnable proof**: fresh-env `pip install sembl-stack` → onboarding → one gated loop, by someone who's never seen it.
+6. **Design-partner QA pass** done; embarrassing friction fixed.
+7. **Apache-2.0** relicensing landed.
 
 **Best-effort (ship without if behind, never slips the date):** breadth toward 30-40 adapters;
-Sentry/observability + rate-limits; flagship CI gate.
+Sentry/observability + rate-limits; flagship CI gate; **real CodeRabbit 2×2** (swap in the moment
+auth is unblocked — mock + shell + 2×2 thesis already stands on its own as proof of
+complementarity).
 
 ## 3. Day-by-day (~July 1 → 14, heavily parallelized)
-- **Jul 1** — merge → master; **open CodeRabbit trial**; relicense MIT→Apache-2.0 (both repos);
+- **Jul 1-2** — merge → master; **open CodeRabbit trial** (done; real auth backend-blocked, bug
+  reported, decoupled from the gate — see decision #8); relicense MIT→Apache-2.0 (both repos);
   kick agy on (a) onboarding screens and (b) the adapter-breadth recipe in parallel; begin partner recruiting.
-- **Jul 2-3** — **CodeRabbit real swap + real-2×2 proof** (front-loaded hard gate); Claude builds/reviews
-  the BYO-credential core; gate 0.2.0 MCP ergonomics + IDE quickstart.
+- **Jul 2-3** — Claude builds/reviews the BYO-credential core; gate 0.2.0 MCP ergonomics + IDE
+  quickstart; CodeRabbit real swap stays best-effort, revisited only if/when unblocked.
 - **Jul 4-5** — onboarding done + doctor preflight per runner; **MurphyScan** run, fix P0s; flagship
   showcase polish; record **asciinema** casts (a clean loop + the rogue-diff BLOCK).
 - **Jul 5-6** — **stranger-runnable proof** (fresh-env install → onboarding → loop); build the **site**
@@ -76,7 +79,7 @@ Sentry/observability + rate-limits; flagship CI gate.
 
 ## 4. Workstreams (pinned-spec status)
 - **WS-C onboarding + BYO-keys** — **[spec pinned: [SPEC-tui-phase1-onboarding.md](SPEC-tui-phase1-onboarding.md)]** (revised to the BYO stance).
-- **WS-B CodeRabbit real** — **[spec pinned: [SPEC-coderabbit-prep.md](SPEC-coderabbit-prep.md)]** (RESUME-HERE banner; now front-loaded to Jul 1-3).
+- **WS-B CodeRabbit real** — **[spec pinned: [SPEC-coderabbit-prep.md](SPEC-coderabbit-prep.md)]** — **decoupled from the launch gate 2026-07-02** (real auth backend-blocked, bug reported to CodeRabbit); best-effort, revisit if/when unblocked.
 - **WS-H breadth recipe**, **gate-0.2.0 mini-spec**, **site/proof spec**, **MurphyScan run-plan**,
   **RSI-L1 readout** — **[pin on request]**: say the word and Claude pins these so July 1 is zero-spec-writing.
 
