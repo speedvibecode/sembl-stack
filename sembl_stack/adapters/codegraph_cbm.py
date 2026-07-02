@@ -59,7 +59,10 @@ class CbmCodeGraph:
         failure — reconcile degrades to UNKNOWN, never blocks.
         """
         if index:
-            self._run("index_repository", {"path": str(Path(repo).resolve())})
+            # CBM's tool contract requires `repo_path` (`path` is silently rejected);
+            # `mode: fast` skips similarity/semantic edges — reconcile only needs symbols.
+            self._run("index_repository",
+                      {"repo_path": str(Path(repo).resolve()), "mode": "fast"})
         slug = self._project_slug(repo)
         if not slug:
             return {}

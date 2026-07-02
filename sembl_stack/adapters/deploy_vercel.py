@@ -30,6 +30,9 @@ class VercelDeployAdapter:
                prebuilt: bool = False) -> Delivery:
         repo_path = str(Path(repo).resolve())
         cmd = _resolve_vercel()
+        if not cmd:
+            return Delivery(target="vercel", status="failed",
+                            data={"reason": "vercel CLI not found on PATH"})
         if prebuilt:
             cmd.append("deploy")
             cmd.append("--prebuilt")
@@ -87,6 +90,9 @@ class VercelDeployAdapter:
         target-less/omitted call silently never rolled anything back.
         """
         repo_path = str(Path(repo).resolve())
+        if not _resolve_vercel():
+            return Delivery(target="vercel", status="rollback_failed",
+                            data={"reason": "vercel CLI not found on PATH"})
         if not to:
             to = self._previous_production_url(repo_path)
             if not to:

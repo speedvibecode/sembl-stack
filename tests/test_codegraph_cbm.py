@@ -102,3 +102,23 @@ def test_reconcile_cli_requires_a_source(tmp_path):
     reason="codebase-memory-mcp not installed")
 def test_cbm_available_when_installed():
     assert CbmCodeGraph().available()
+
+
+def test_index_payload_uses_repo_path_contract(monkeypatch, tmp_path):
+    # CBM's index_repository REQUIRES `repo_path`; sending `path` silently no-ops the
+    # live index and reconcile degrades to UNKNOWN (codex audit finding 7).
+    captured = {}
+
+    def run(cmd, **kwargs):
+        from types import SimpleNamespace
+        captured.setdefault(cmd[2], json.loads(cmd[3]))
+        return SimpleNamespace(returncode=0, stdout="{}", stderr="")
+
+    monkeypatch.setattr("sembl_stack.adapters.codegraph_cbm.shutil.which",
+                        lambda b: "cbm.exe")
+    monkeypatch.setattr("sembl_stack.adapters.codegraph_cbm.subprocess.run", run)
+    CbmCodeGraph().code_graph(str(tmp_path))
+
+    payload = captured["index_repository"]
+    assert "repo_path" in payload and "path" not in payload
+    assert payload["mode"] == "fast"

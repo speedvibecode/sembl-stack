@@ -1,6 +1,8 @@
 """Artifact contract + run store: round-trip and persistence."""
 from __future__ import annotations
 
+import pytest
+
 from sembl_stack import artifacts
 from sembl_stack.artifacts import (
     Bounds, Change, ReconciliationReport, SpecGraph, Task, Verdict,
@@ -56,3 +58,14 @@ def test_run_store_put_get_manifest(tmp_path):
     m = run.manifest()
     assert m["status"] == "PASS" and m["attempts"] == 2
     assert "bounds" in m["artifacts"] and "change-1" in m["artifacts"]
+
+
+def test_open_rejects_path_shaped_run_ids(tmp_path):
+    # A run id is a directory NAME, never a path — a crafted id must not resolve
+    # (or mkdir) outside .sembl/runs (codex audit finding 4).
+    store = RunStore(str(tmp_path))
+    for bad in ("../evil", r"..\evil", "a/b", r"a\b", ".hidden", "..", ""):
+        with pytest.raises(ValueError):
+            store.open(bad)
+    run = store.new_run()
+    assert store.open(run.id).manifest()["id"] == run.id   # real ids still open

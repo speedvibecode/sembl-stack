@@ -7,6 +7,7 @@ resumable, and enterable at an arbitrary stage (supply the upstream artifact).
 from __future__ import annotations
 
 import json
+import re
 import time
 import uuid
 from pathlib import Path
@@ -79,6 +80,9 @@ class Run:
             json.dumps(m, indent=2, ensure_ascii=False), encoding="utf-8")
 
 
+_RUN_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
+
+
 class RunStore:
     def __init__(self, repo: str):
         self.root = Path(repo).resolve() / ".sembl" / "runs"
@@ -95,6 +99,11 @@ class RunStore:
         return run
 
     def open(self, run_id: str) -> Run:
+        # A run id is a single directory name under .sembl/runs — never a path. Rejecting
+        # separators/leading dots here keeps `runs <id>` / `apply <id>` from resolving
+        # (and mkdir-ing) outside the store via a crafted id like `..\\..\\evil`.
+        if not _RUN_ID.match(run_id):
+            raise ValueError(f"invalid run id: {run_id!r}")
         return Run(self.root, run_id)
 
     def list_runs(self) -> list[str]:

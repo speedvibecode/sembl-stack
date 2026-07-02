@@ -182,7 +182,7 @@ def _isolation_breach(before: set[str] | None, after: set[str] | None) -> str | 
             f"(unexpected working-tree changes outside {_STORE_PREFIX}: {shown})")
 
 
-def _nodes(cfg: StackConfig, task: Task, tracer, run):
+def _nodes(cfg: StackConfig, task: Task, tracer, run, holder: dict | None = None):
     def plan(state: dict) -> dict:
         with tracer.span("L2.plan"):
             bounds = cfg.spec.plan(task)
@@ -197,6 +197,8 @@ def _nodes(cfg: StackConfig, task: Task, tracer, run):
         if prev is not None:
             prev.close()                           # fresh cage per attempt
         sandbox = cfg.sandbox.open(task.repo)
+        if holder is not None:
+            holder["sandbox"] = sandbox            # so run() can close it on a crash
         t0 = time.perf_counter()
         with tracer.span("L3.execute", attempt=n):
             try:
@@ -291,13 +293,28 @@ def run(cfg: StackConfig, task: Task) -> LoopResult:
     run_rec = RunStore(task.repo).new_run(task)
     # L4 isolation guard: snapshot the source tree BEFORE any sandbox/executor runs.
     tree_before = _source_tree_status(task.repo)
-    plan, execute, verify, route = _nodes(cfg, task, tracer, run_rec)
+    holder: dict = {"sandbox": None}
+    plan, execute, verify, route = _nodes(cfg, task, tracer, run_rec, holder)
     init = {"attempt": 0, "feedback": None, "history": []}
 
     try:
-        final, engine = _run_langgraph(plan, execute, verify, route, init)
-    except ImportError:
-        final, engine = _run_fallback(plan, execute, verify, route, init), "fallback"
+        try:
+            final, engine = _run_langgraph(plan, execute, verify, route, init)
+        except ImportError:
+            final, engine = _run_fallback(plan, execute, verify, route, init), "fallback"
+    except Exception as exc:
+        # A crash in plan/verify (executor crashes are already converted in-node) must not
+        # leave the run stuck at "started" with an open sandbox on disk. Close the cage,
+        # record the failure, then re-raise so the caller still sees the real error.
+        sb = holder.get("sandbox")
+        if sb is not None:
+            try:
+                sb.close()
+            except Exception:
+                pass
+        run_rec.set_status("failed", error=repr(exc)[:500])
+        tracer.flush()
+        raise
 
     sandbox = final.get("sandbox")
     workdir = getattr(sandbox, "workdir", None) if sandbox else None

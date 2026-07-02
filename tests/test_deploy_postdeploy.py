@@ -437,3 +437,14 @@ def test_postdeploy_cli_no_rollback_by_default(monkeypatch, tmp_path):
     verdict = Verdict.from_json(out_path.read_text(encoding="utf-8"))
     assert "rollback" not in verdict.raw
 
+
+
+def test_vercel_missing_cli_returns_structured_failure(monkeypatch):
+    # No vercel on PATH must yield a failed Delivery, not a raw FileNotFoundError
+    # (codex audit finding 8).
+    monkeypatch.setattr("sembl_stack.adapters.deploy_vercel._resolve_vercel", lambda: [])
+    from sembl_stack.adapters.deploy_vercel import VercelDeployAdapter
+    d = VercelDeployAdapter().deploy(".", production=True)
+    assert d.status == "failed" and "not found" in d.data["reason"]
+    r = VercelDeployAdapter().rollback(".")
+    assert r.status == "rollback_failed" and "not found" in r.data["reason"]
