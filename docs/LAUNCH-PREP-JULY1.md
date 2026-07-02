@@ -72,9 +72,10 @@ auth is unblocked — no longer load-bearing: **`review: llm` delivered the REAL
 (gate_only=4, quality_only=3, both=2, 0 UNKNOWN on 14/14 live reviews)).
 
 ## 3. Day-by-day (~July 1 → 14, heavily parallelized)
-- **Jul 1-2** — merge → master; **open CodeRabbit trial** (done; real auth backend-blocked, bug
-  reported, decoupled from the gate — see decision #8); relicense MIT→Apache-2.0 (both repos);
-  kick agy on (a) onboarding screens and (b) the adapter-breadth recipe in parallel; begin partner recruiting.
+- **Jul 1-2** — ✅ merge → master; ✅ CodeRabbit resolved (auth backend-blocked, bug reported,
+  decoupled — `review: llm` shipped instead); ✅ WS-C onboarding built+hardened (codex screens,
+  Claude core+review). Still open from this block: relicense MIT→Apache-2.0 (both repos);
+  adapter-breadth recipe; partner recruiting.
 - **Jul 2-3** — Claude builds/reviews the BYO-credential core; gate 0.2.0 MCP ergonomics + IDE
   quickstart; CodeRabbit real swap stays best-effort, revisited only if/when unblocked.
 - **Jul 4-5** — onboarding done + doctor preflight per runner; **MurphyScan** run, fix P0s; flagship

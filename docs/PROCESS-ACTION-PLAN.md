@@ -5,11 +5,13 @@
 > overview, into one document a session can act on cold. Reference material kept *beside* it
 > (not merged): `process-self-improvement.md` (north-star theory), `eval-metric-O3.md` (the
 > computable metric — code points at it), `memory-plane-hypothesis.md` (CBM-use decision), and
-> the `SPEC-*.md` agy build specs. **[LOCKED]** = decided basis; change only by editing this file
+> the `SPEC-*.md` delegated build specs. **[LOCKED]** = decided basis; change only by editing this file
 > in a commit so the decision is diffable.
 >
-> Last reconciled: 2026-06-21. Current branch of record: `ws2-through-deploy-spine`
-> (master untouched). Re-verify state against the repo before trusting any status line.
+> Last reconciled: 2026-07-02. Current branch of record: `master` (the ws2 through-deploy
+> spine, the L6.5 merge stage, `review: llm`, and WS-C onboarding+BYO-keys are all merged;
+> feature branches deleted). Dates in this doc are sequence markers, not deadlines.
+> Re-verify state against the repo before trusting any status line.
 >
 > **▶ For execution, start here: [LAUNCH-PREP-JULY1.md](LAUNCH-PREP-JULY1.md)** — the turnkey
 > July-1 runbook (ordered fire-able workstreams across all three repos, agent roster, gotchas).
@@ -161,9 +163,10 @@ front-end that watches the run store + calls the same CLI stage commands — no 
 
 ## 9. THE ACTION PLAN — remaining work, in order
 Anti-trap discipline [LOCKED]: prove the **evidence + a depth-1 through-deploy spine on the ONE
-flagship FIRST**; fan out to ~50 adapters only AFTER. Evidence ✅ done; spine 9/11.
+flagship FIRST**; fan out to ~50 adapters only AFTER. Evidence ✅ done; spine ✅ CLOSED
+(through-deploy + rollback + merge gate + real quality axis all live on master).
 
-**Track 1 — close the spine (no external account; agy-delegable):**
+**Track 1 — close the spine (no external account):**
 1. ~~**L8 rollback trigger**~~ — ✅ **DONE 2026-06-21** (`docs/SPEC-l8-rollback.md`, commit
    `b43b396`). Post-deploy `BLOCK` fires `VercelDeployAdapter.rollback` via opt-in `postdeploy
    --rollback`; outcome recorded in `verdict.raw["rollback"]`; gate stays mechanism-free. 4 new
@@ -186,28 +189,34 @@ flagship FIRST**; fan out to ~50 adapters only AFTER. Evidence ✅ done; spine 9
    hand-passed JSON). Subprocess-contained, advisory-only. 7 new tests, 88 passed / 1 skipped.
    *Remaining:* the flagship live-proof run (owner, §7 of the spec) → hand the report to Claude.
 
-**Track 2 — the `sembl stack` TUI (parallel; agy-delegable):**
+**Track 2 — the `sembl stack` TUI (parallel):**
 3. ~~**TUI Phase 0**~~ — ✅ **DONE 2026-06-22** (`docs/SPEC-tui-phase0.md`, commit `bc03beb`).
    Bare `sembl-stack` launches a Textual wizard (New/Existing + stage rail) with `session.json`
    resume over the run store; `session.py` (pure core, 6 committed tests) + `wizard.py` (pilot-
    tested locally) + `invoke_without_command` wiring. Built+verified by Claude (kept per owner
    decision; a from-scratch Textual app is the riskiest delegation). Committed suite 49 passed.
    *Remaining:* owner TTY live-proof (relaunch resumes mid-rail).
-4. **TUI Phase 1** — CBM index trigger, reconcile panel, live deploy/postdeploy panels, MurphyScan
-   readiness screen.
+4. ~~**TUI Phase 1 — onboarding + BYO-keys (WS-C)**~~ — ✅ **DONE 2026-07-02** (spec
+   `SPEC-tui-phase1-onboarding.md`, commits `161b6e7` + hardening `34a43b5`): `profile.py`
+   credential core (pointer-only `key_source`, enforced save AND load; secret-scrub on executor
+   output), codex-built Textual first-run wizard (welcome → BYO choice w/ preflight → prefs),
+   `--reconfigure`, and profile-as-default `loop` (an explicit repo `sembl.stack.yaml` always
+   wins). 126 committed + 52 local tests green.
+5. **TUI Phase 2** — the stage rail actually running stages under the profile; CBM index trigger,
+   reconcile panel, live deploy/postdeploy panels, MurphyScan readiness screen.
 
-**Track 3 — prep the CodeRabbit trial BEFORE opening the 14-day account — ✅ PREP DONE
-2026-06-22 (spec `SPEC-coderabbit-prep.md`, agy-built, reviewed + re-verified; 59 passed):**
-5. ✅ **L5.5 review-adapter shell** — `ReviewReport` artifact + `ReviewAdapter` protocol +
+**Track 3 — the quality axis (L5.5) — ✅ CLOSED 2026-07-02 via `review: llm`; CodeRabbit
+decoupled (confirmed third-party backend bug). History below (spec `SPEC-coderabbit-prep.md`):**
+6. ✅ **L5.5 review-adapter shell** — `ReviewReport` artifact + `ReviewAdapter` protocol +
    `MockReviewAdapter` (validated file-level N+1/unsafe detector) + `CodeRabbitReviewAdapter`
    subprocess shell (PROVISIONAL, mock-tested, never run the real CLI) + `review` registry layer
    (mock default) + advisory `review` CLI.
-6. ✅ **Planted quality-regression case 14** (`eval/corpus/14-quality-defect-passes-gate`) — the
+7. ✅ **Planted quality-regression case 14** (`eval/corpus/14-quality-defect-passes-gate`) — the
    quality-axis analog of case 13: **passes the Sembl gate** (in-scope, evidenced, low-churn) but
    has a real N+1 defect the reviewer flags.
-7. ✅ **The 2×2 eval** (`eval/two_axis.py`) — verified **gate_only=6, quality_only=1, both=0** ⇒
+8. ✅ **The 2×2 eval** (`eval/two_axis.py`) — verified **gate_only=6, quality_only=1, both=0** ⇒
    each catches what the other misses, **complementary, not redundant.**
-8. 🟡 **2026-07-02 — real CLI installed + agent-integrated, real auth BLOCKED.** Trial account
+9. 🟡 **2026-07-02 — real CLI installed + agent-integrated, real auth BLOCKED.** Trial account
    open (org `speedvibecode`). No official Windows build exists yet; installed via the
    unofficial native port [Sukarth/CodeRabbit-Windows](https://github.com/Sukarth/CodeRabbit-Windows)
    (decompiles+recompiles the official Linux binary locally with Bun — script contents verified
@@ -241,7 +250,7 @@ flagship FIRST**; fan out to ~50 adapters only AFTER. Evidence ✅ done; spine 9
    third-party bug outside sembl's control; launch proceeds on the already-proven mock+shell+2×2
    thesis. `review: mock` stays the default; real-CLI wiring stays swap-ready, best-effort,
    revisited only if CodeRabbit fixes the bug or the owner buys Agentic-key credits.
-9. **`review: llm` — the way out (2026-07-02, same day).** Rather than wait on CodeRabbit, built
+10. ✅ **`review: llm` — the way out (2026-07-02, same day).** Rather than wait on CodeRabbit, built
    `LLMReviewAdapter` ("CodeRabbit at home", `review_llm.py`): drives a logged-in agent CLI the
    operator already has — default `claude -p` on the operator's own OAuth session (never a
    token), or `opencode` for cheap BYO models — with a strict reviewer prompt over the diff,
@@ -254,26 +263,36 @@ flagship FIRST**; fan out to ~50 adapters only AFTER. Evidence ✅ done; spine 9
 **Track 4 — RSI-L1 readout (cheap, high-narrative):** per-executor iters-to-green + cost over the
 corpus → the "measured selection" artifact. Advances the north star's first rung.
 
-**Back half (only after the spine + CodeRabbit proof):** breadth → ~50 adapters (2–4/layer,
-demand-curated, agy-delegable) · full O5 (hosted/team secret-permission-sandbox) · private beta
+**Back half (spine ✅ + quality axis ✅ — gated now on owner dogfood):** owner dogfoods the
+onboarded loop daily (starts the RSI-L1 feed) · Apache-2.0 relicense (both repos) · gate 0.2.0
+MCP ergonomics · MurphyScan deep audit · PyPI `sembl-stack` 0.1.0 + public site · breadth →
+~50 adapters (2–4/layer, demand-curated) · full O5 (hosted/team secret-permission-sandbox) · private beta
 (3–5 partners, the moment a stranger can run the spine) · MurphyScan green on the flagship · then
 **public launch (Track A)**: full through-deploy, beats-prompt-chains, ~50-tool product.
 
 ## 10. The delegation method (the operating model)
 Claude = **orchestration only**: pin a precise spec (all judgment + exact acceptance numbers) →
 a cheap CLI **executes** → Claude **reviews the diff + re-verifies** (never trusts the agent's
-self-check) → commit + push. Proven on the through-deploy evidence and the merge stage (both clean
-on first review). Keep every delegation spec fully pinned so each agy/cheap-model session is
-execution-only and the limited test-time tools aren't burned on setup.
+self-check) → commit + push. Proven on the through-deploy evidence, the merge stage, and the
+WS-C onboarding screens (all clean or near-clean on first review). Keep every delegation spec
+fully pinned so each delegated session is execution-only.
+
+**Roster (owner directive 2026-07-02): Claude + codex GPT-5.5 ONLY — agy retired** (TTY-only
+auth friction). codex effort: `medium` for mechanical builds, `xhigh`/`high` for tough ones or
+deep reviews. Claude keeps all credential-sensitive paths + review-the-review.
 
 ## 11. Tooling reality
-- **agy (Antigravity CLI, Gemini-3.5-Flash)** — `C:\Users\totla\AppData\Local\agy\bin\agy.exe`;
-  headless `agy -p "<prompt>" --dangerously-skip-permissions --model gemini-3.5-flash`. **Needs
-  interactive auth (a TTY)** — hangs silently otherwise — so the **owner runs it in their own
-  foreground terminal**; it cannot run from Claude's automated shell. Fast path for delegation.
+- **codex (GPT-5.5)** — the delegate + independent reviewer. Headless recipe on this box:
+  `codex exec --cd <repo> -s workspace-write|read-only -c 'mcp_servers={}'
+  -c model_reasoning_effort="medium" - < prompt.md`. Two LOAD-BEARING gotchas: MCP must be
+  disabled per-invocation (the CBM server wedges codex), and the prompt MUST be fed on stdin
+  via `-` from a file — passing it as an argv argument wedges codex at startup forever when
+  stdin is a non-TTY pipe.
 - **opencode + MiniMax-M3** — `opencode -m tokenrouter/MiniMax-M3` (native exe to preserve
-  multi-line prompts); a working cheap executor, but stalled ~1h on a single-shot build task —
-  prefer agy for delegation.
+  multi-line prompts); a working cheap L3 *executor inside the loop*, but stalled ~1h on a
+  single-shot build task — don't use it for delegated builds.
+- **agy (Antigravity CLI) — RETIRED 2026-07-02** (needed the owner's foreground TTY for auth;
+  replaced by codex).
 - **codebase-memory-mcp (CBM)** — code-graph engine (`index_repository`/`detect_changes`); feeds
   reconcile (S9) and bounds-expansion. Claim-A use; per-PR indexing suffices (do NOT promote it
   to a load-bearing memory plane — see `memory-plane-hypothesis.md`).

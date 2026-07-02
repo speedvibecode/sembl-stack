@@ -1,5 +1,10 @@
 # SPEC — CodeRabbit prep (L5.5 quality axis), BEFORE opening the 14-day trial
 
+> **SUPERSEDED 2026-07-02 — kept as history, nothing here is a pending task.** CodeRabbit
+> auth is dead (confirmed backend bug, report filed) and the quality axis shipped instead via
+> `review: llm` (`review_llm.py`, real 2×2 green — see PROCESS-ACTION-PLAN §9 item 10). The
+> mock+shell+planted-case work below is landed and swap-ready if CodeRabbit ever unblocks.
+
 > **STATUS: ✅ PREP COMPLETE & GREEN (2026-06-22)** — agy-built from this spec, reviewed +
 > re-verified by Claude (59 passed; 2×2 gate_only=6/quality_only=1). The mock + shell + planted
 > case + 2×2 eval are landed and swap-ready.
