@@ -163,6 +163,33 @@ class MergeRecord(_Serializable):
     data: dict = field(default_factory=dict)
 
 
+def diff_sha256(diff: str) -> str:
+    """The content hash that binds a Verdict to the exact diff it judged."""
+    import hashlib
+    return hashlib.sha256((diff or "").encode("utf-8")).hexdigest()
+
+
+def bind_verdict(verdict: Verdict, diff: str) -> Verdict:
+    """Bind a Verdict to the change it judged (deep-audit item 1).
+
+    Without this, `merge`/`apply` accept ANY PASS verdict file — a verdict issued
+    for one change could green-light merging another. `subject` records the judged
+    diff's hash + file set so merge/apply can verify they act on the same change.
+    Mutates and returns the same Verdict."""
+    files = verdict.raw.get("changed_files")
+    if not isinstance(files, list):
+        try:
+            from sembl.validator import parse_unified_diff
+            files = parse_unified_diff(diff)[0]
+        except Exception:
+            files = []
+    verdict.raw["subject"] = {
+        "diff_sha256": diff_sha256(diff),
+        "files": sorted(files),
+    }
+    return verdict
+
+
 # ExecutionResult is the legacy name for Change; kept so existing adapters import cleanly.
 ExecutionResult = Change
 

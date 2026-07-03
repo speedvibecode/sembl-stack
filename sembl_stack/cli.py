@@ -270,9 +270,13 @@ def review(diff_path, config_path, out):
 @click.option("--allow-warn", is_flag=True,
               help="Allow merging a WARN verdict. BLOCK is never merged.")
 @click.option("--no-ff/--ff", default=True, help="Create a merge commit (default) vs fast-forward.")
+@click.option("--skip-binding-check", is_flag=True,
+              help="Merge even when the verdict's judged file set can't be matched "
+                   "against the source ref (recorded in the MergeRecord).")
 @click.option("--config", "config_path", default="sembl.stack.yaml")
 @click.option("--out", default=None, help="Write the MergeRecord artifact here.")
-def merge(repo, verdict_path, into, source, allow_warn, no_ff, config_path, out):
+def merge(repo, verdict_path, into, source, allow_warn, no_ff, skip_binding_check,
+          config_path, out):
     """L6.5: Verdict(PASS) -> MergeRecord. Gated merge into the target branch."""
     verdict = _read_verdict(verdict_path)
     if verdict.status == "BLOCK":
@@ -282,10 +286,52 @@ def merge(repo, verdict_path, into, source, allow_warn, no_ff, config_path, out)
     if verdict.status not in ("PASS", "WARN"):
         raise click.UsageError(f"unsupported verdict status: {verdict.status}")
 
+    # Verdict-to-source binding: the verdict names the files it judged; the merge
+    # must ship exactly those. Otherwise any PASS verdict file green-lights merging
+    # any branch. Unbound (pre-binding) verdicts pass through with a note.
+    binding = _check_merge_binding(verdict, repo, into, source) \
+        if not skip_binding_check else {"status": "skipped (--skip-binding-check)"}
+    if binding.get("mismatch") and not skip_binding_check:
+        raise click.UsageError(
+            "verdict/source mismatch — the verdict did not judge what this merge "
+            f"would ship: {binding['mismatch']} "
+            "(re-gate the branch, or --skip-binding-check to override; overrides "
+            "are recorded)")
+
     cfg = load(_resolve_config(config_path, repo))
     record = cfg.merge.merge(repo, into=into, source=source, no_ff=no_ff)
+    record.data["source_binding"] = binding
     _emit(record, out)
     raise SystemExit(0 if record.status == "merged" else 1)
+
+
+def _check_merge_binding(verdict, repo, into, source) -> dict:
+    """Compare the verdict's judged file set to what `into...source` would merge."""
+    subject = (getattr(verdict, "raw", {}) or {}).get("subject") or {}
+    judged = subject.get("files")
+    if judged is None:
+        judged = verdict.raw.get("changed_files") if isinstance(
+            verdict.raw.get("changed_files"), list) else None
+    if judged is None:
+        return {"status": "unbound (verdict predates source binding)"}
+    proc = subprocess.run(
+        ["git", "-C", str(Path(repo).resolve()), "diff", "--name-only",
+         f"{into}...{source}"],
+        capture_output=True, text=True, encoding="utf-8", errors="replace")
+    if proc.returncode != 0:
+        return {"mismatch": f"could not diff {into}...{source} "
+                            f"({proc.stderr.strip() or 'git diff failed'})"}
+    actual = {p.strip() for p in proc.stdout.splitlines() if p.strip()}
+    judged_set = set(judged)
+    extra, missing = sorted(actual - judged_set), sorted(judged_set - actual)
+    if extra or missing:
+        bits = []
+        if extra:
+            bits.append(f"unjudged in merge: {', '.join(extra[:5])}")
+        if missing:
+            bits.append(f"judged but absent: {', '.join(missing[:5])}")
+        return {"mismatch": "; ".join(bits), "extra": extra, "missing": missing}
+    return {"status": "verified", "files": sorted(judged_set)}
 
 
 @main.command()
@@ -536,9 +582,11 @@ def runs(run_id, repo, verbose):
 @click.option("--repo", default=".")
 @click.option("--allow-warn", is_flag=True,
               help="Allow applying a final WARN verdict. BLOCK is never applied.")
+@click.option("--allow-dirty", is_flag=True,
+              help="Apply even when the target working tree has uncommitted changes.")
 @click.option("--check", "check_only", is_flag=True,
               help="Only verify that the patch applies; do not change the working tree.")
-def apply_run(run_id, repo, allow_warn, check_only):
+def apply_run(run_id, repo, allow_warn, allow_dirty, check_only):
     """Apply a run's final accepted patch to the source repo working tree."""
     repo_path = Path(repo).resolve()
     store = RunStore(str(repo_path))
@@ -561,9 +609,43 @@ def apply_run(run_id, repo, allow_warn, check_only):
     if change is None or not (getattr(change, "diff", "") or "").strip():
         raise click.UsageError("run has no final patch to apply")
 
+    # Verdict-to-source binding: the verdict must have been issued for THIS patch.
+    # Without it, any PASS verdict file (edited, or copied from another run) would
+    # green-light applying an unjudged diff.
+    subject = (getattr(verdict, "raw", {}) or {}).get("subject") or {}
+    want = subject.get("diff_sha256")
+    if want:
+        from .artifacts import diff_sha256
+        have = diff_sha256(change.diff)
+        if have != want:
+            raise click.UsageError(
+                "verdict/patch mismatch: the run's verdict was not issued for this "
+                f"patch (judged sha256 {want[:12]}…, patch is {have[:12]}…) — "
+                "the run's artifacts have diverged; re-run the loop")
+
+    # Dirty-tree guard: applying over uncommitted edits mixes judged and unjudged
+    # changes in one tree (and a failed apply can't be cleanly undone). Opt out
+    # explicitly with --allow-dirty.
+    if not check_only and not allow_dirty and _tree_is_dirty(repo_path):
+        raise click.UsageError(
+            "target working tree has uncommitted changes — commit/stash them "
+            "first, or pass --allow-dirty")
+
     _git_apply(repo_path, change.diff, check_only=check_only)
     action = "checked" if check_only else "applied"
     click.secho(f"{action} {run_id} -> {repo_path}", fg="green")
+
+
+def _tree_is_dirty(repo: Path) -> bool:
+    """Uncommitted changes in the working tree, ignoring the run store (.sembl/)."""
+    proc = subprocess.run(
+        ["git", "status", "--porcelain"], cwd=repo, capture_output=True, text=True,
+        encoding="utf-8", errors="replace")
+    if proc.returncode != 0:       # not a git repo etc. — git apply will say so
+        return False
+    # porcelain v1: `XY path` (rename: `XY old -> new`); path starts at column 3
+    paths = (line[3:].strip().strip('"') for line in proc.stdout.splitlines() if len(line) > 3)
+    return any(p and not p.startswith(".sembl") for p in paths)
 
 
 def _git_apply(repo: Path, diff: str, *, check_only: bool) -> None:

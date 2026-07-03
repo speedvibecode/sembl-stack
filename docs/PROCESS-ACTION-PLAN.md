@@ -280,11 +280,16 @@ corpus → the "measured selection" artifact. Advances the north star's first ru
 0.1.21 (contract self-edit BLOCK, traversal-safe paths, metadata lockstep) + stack hardening
 (run-id validation, loop failed-status persistence, CBM repo_path contract, Vercel structured
 failure, sembl+mcp as core deps, reviewer prompt treats diff as untrusted). Queued, in value order:
-1. **Verdict-to-source binding (L6.5)** — `merge`/`apply` accept any PASS verdict file; bind the
-   Verdict to the commit/diff hash it judged and verify at merge/apply time. Design work; the
-   next real hardening rung for the accountability story.
-2. **`apply` dirty-tree guard** — refuse (or warn) when the target tree is dirty / not at the
-   recorded base; `--check` exists but isn't required.
+1. ~~**Verdict-to-source binding (L6.5)**~~ — ✅ **DONE 2026-07-03**: the loop stamps
+   `verdict.raw["subject"] = {diff_sha256, files}` (`bind_verdict`, all three verdict paths incl.
+   executor-failure/empty-diff BLOCKs); `apply` recomputes the patch hash and refuses a verdict
+   issued for a different diff; `merge` compares the judged file set against
+   `git diff --name-only into...source` and refuses on any delta (`--skip-binding-check` is the
+   audited override, outcome recorded in `MergeRecord.data["source_binding"]`). Unbound
+   pre-binding verdicts pass through with a recorded note (back-compat). 14 new tests.
+2. ~~**`apply` dirty-tree guard**~~ — ✅ **DONE 2026-07-03** (same commit): `apply` refuses a
+   dirty target tree (`.sembl/` run-store noise excluded) unless `--allow-dirty`; `--check`
+   unaffected.
 3. **Gate: staged-diff mode for the pre-commit hook** — the hook currently gates the whole
    worktree, not the commit being made.
 4. **Gate: case-insensitive path comparison on Windows** — case-only mismatches can false-flag

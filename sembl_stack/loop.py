@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 from typing import Any, TypedDict
 
 from .adapters.base import Task, Verdict
-from .artifacts import Change, Trace
+from .artifacts import Change, Trace, bind_verdict
 from .config import StackConfig
 from .specgraph import build_spec_graph
 from .store import RunStore
@@ -271,6 +271,9 @@ def _nodes(cfg: StackConfig, task: Task, tracer, run, holder: dict | None = None
                     + [f"executor exited non-zero (exit_code={rc}); the change was applied "
                        "but the run did not complete cleanly"],
                     raw={**(getattr(verdict, "raw", {}) or {}), "exit_code": rc})
+        # Bind the verdict to the exact diff it judged (also for BLOCKs — harmless),
+        # so merge/apply can later refuse a verdict issued for a different change.
+        bind_verdict(verdict, getattr(change, "diff", "") or "")
         attempt = state["attempt"] + 1
         run.put(verdict, name=f"verdict-{attempt}")
         return {
