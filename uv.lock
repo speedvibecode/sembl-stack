@@ -1682,7 +1682,7 @@ wheels = [
 
 [[package]]
 name = "sembl"
-version = "0.1.19"
+version = "0.1.20"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "anthropic" },
@@ -1690,9 +1690,9 @@ dependencies = [
     { name = "openai" },
     { name = "rich" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/74/24/a7415ce1b73a89665f68e03995a5ec504f4792dd99b95d76ae6599a380f4/sembl-0.1.19.tar.gz", hash = "sha256:d06dc9a76e74e00cf5bbfa54ded7924db619b1e6c6a85978b1d0db8e50d261d8", size = 100107, upload-time = "2026-06-20T10:07:29.263Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/39/bf/7beb7f291a18efcf983fa821e3610752b885d73297e3b259f585430b04bc/sembl-0.1.20.tar.gz", hash = "sha256:b6bfc57bdf8e63e1108c6fd2c2dd94433381b31e02e0f6f26922c3f81a66f78d", size = 100235, upload-time = "2026-06-20T13:15:52.475Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/17/5b/21d26fed39c5160642ab47efbae75f5069e6c333d591dc4dae48375fb29b/sembl-0.1.19-py3-none-any.whl", hash = "sha256:ddda38e23fc7772e4efbde9fc61eb63b68fd750a200f26e3e58dc67e4e55f6a5", size = 77945, upload-time = "2026-06-20T10:07:28.065Z" },
+    { url = "https://files.pythonhosted.org/packages/e1/94/0d0ddb64573bf91208bd6b97c5a1b02c4d0dd46973efd171ce3500908017/sembl-0.1.20-py3-none-any.whl", hash = "sha256:e6b7e6cd518f1d8592eba301fcdced66d990dd02d39d7614e660cfb6116ee21f", size = 78102, upload-time = "2026-06-20T13:15:51.344Z" },
 ]
 
 [[package]]
@@ -1702,7 +1702,9 @@ source = { editable = "." }
 dependencies = [
     { name = "click" },
     { name = "langgraph" },
+    { name = "mcp" },
     { name = "pyyaml" },
+    { name = "sembl" },
 ]
 
 [package.optional-dependencies]
@@ -1737,11 +1739,13 @@ requires-dist = [
     { name = "langgraph", specifier = ">=0.2" },
     { name = "langgraph", marker = "extra == 'all'", specifier = ">=0.2" },
     { name = "langgraph", marker = "extra == 'orchestrate'", specifier = ">=0.2" },
+    { name = "mcp", specifier = ">=1.0" },
     { name = "mcp", marker = "extra == 'all'", specifier = ">=1.0" },
     { name = "mcp", marker = "extra == 'mcp'", specifier = ">=1.0" },
     { name = "pyyaml", specifier = ">=6.0" },
-    { name = "sembl", marker = "extra == 'all'", specifier = ">=0.1.19" },
-    { name = "sembl", marker = "extra == 'gate'", specifier = ">=0.1.19" },
+    { name = "sembl", specifier = ">=0.1.20" },
+    { name = "sembl", marker = "extra == 'all'", specifier = ">=0.1.20" },
+    { name = "sembl", marker = "extra == 'gate'", specifier = ">=0.1.20" },
     { name = "textual", marker = "extra == 'all'", specifier = ">=0.50" },
     { name = "textual", marker = "extra == 'tui'", specifier = ">=0.50" },
 ]
