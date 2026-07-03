@@ -577,6 +577,24 @@ def runs(run_id, repo, verbose):
                 click.echo(f"    attempt {e.get('attempt','?')}: " + "  ".join(bits))
 
 
+@main.command()
+@click.option("--repo", default=".")
+@click.option("--json", "as_json", is_flag=True, help="Emit the full summary as JSON.")
+def rsi(repo, as_json):
+    """RSI-L1 readout: per-executor iterations-to-green + cost over the recorded runs.
+
+    The "measured selection" artifact (north-star first rung): every number is read back
+    from run-store artifacts the loop persisted — cost shows "not yet recorded" for runs
+    whose executor reported no usage, never an invented number.
+    """
+    from . import rsi as rsi_mod
+    summary = rsi_mod.aggregate(RunStore(repo))
+    if as_json:
+        click.echo(json.dumps(summary, indent=2))
+    else:
+        click.echo(rsi_mod.render(summary))
+
+
 @main.command(name="apply")
 @click.argument("run_id")
 @click.option("--repo", default=".")
