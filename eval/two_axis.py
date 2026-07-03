@@ -49,7 +49,7 @@ def _reviewer():
     return "mock", MockReviewAdapter()
 
 
-def _patient_review(review, diff, tries: int = 6, wait: int = 300):
+def _patient_review(review, diff, tries: int = 14, wait: int = 300):
     """Real reviewers rate-limit on back-to-back runs; with --patient, wait out the window
     and retry instead of counting a throttled review as UNKNOWN."""
     rep = review.review(diff)
