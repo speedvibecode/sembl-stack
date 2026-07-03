@@ -40,7 +40,7 @@
 | 16 | Gate 0.2.0 scope | Package + IDE quickstart + version bump **+ 1-2 new MCP ergonomics** (e.g. a one-call "gate this PR") |
 | 17 | Channels | **Everywhere** — Show HN + r/cursor + dev subreddits + X thread + Product Hunt + more |
 | 18 | Money | **Free now.** ~100 users ⇒ raise + incorporate. Real money = **Sembl Hosted / Teams / Enterprise** ⇒ capture that interest via a **waitlist** on the site (the demand instrument) |
-| 19 | License | **Apache-2.0** across both repos (currently MIT ⇒ **relicense task**; owner is sole copyright holder, so clean) |
+| 19 | License | **Apache-2.0** across both repos — ✅ DONE 2026-07-02 (LICENSE + pyproject + README badge + site footers; owner is sole copyright holder, so clean) |
 | 20 | Internal dashboard | **Post-launch** (WS-K) — the status diagram fed live from run-store + evals |
 
 ## 1. Pre-flight (do once, ~10 min)
@@ -74,7 +74,7 @@ auth is unblocked — no longer load-bearing: **`review: llm` delivered the REAL
 ## 3. Day-by-day (~July 1 → 14, heavily parallelized)
 - **Jul 1-2** — ✅ merge → master; ✅ CodeRabbit resolved (auth backend-blocked, bug reported,
   decoupled — `review: llm` shipped instead); ✅ WS-C onboarding built+hardened (codex screens,
-  Claude core+review). Still open from this block: relicense MIT→Apache-2.0 (both repos);
+  Claude core+review). ✅ relicense MIT→Apache-2.0 done (both repos + site). Still open from this block:
   adapter-breadth recipe; partner recruiting.
 - **Jul 2-3** — Claude builds/reviews the BYO-credential core; gate 0.2.0 MCP ergonomics + IDE
   quickstart; CodeRabbit real swap stays best-effort, revisited only if/when unblocked.
