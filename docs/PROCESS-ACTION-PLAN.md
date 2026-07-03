@@ -78,7 +78,7 @@ repo) → TARGET (product, plane B)`, everything speaking **MCP** at the hub.
 | L4 Sandbox | contain | `Change → Change` | consume | ✅ disposable clone (alias worktree) |
 | L5 Verify (gate) | gate the diff | `Change+Bounds → Verdict` | **OWN gate** | ✅ green, sembl 0.1.20 |
 | L5.5 Reconcile (per-PR) | spec↔code drift | `SpecGraph+CodeGraph → Report` | INTEGRATE (advisory) | ✅ **live: `reconcile --live` drives a real CBM index** (landed 2026-06-22); flagship live-proof pending owner run |
-| L5.5 Quality review | code-quality signal | diff → findings | BUILD (llm) + INTEGRATE (coderabbit, best-effort) | ✅ **REAL quality axis live 2026-07-02 via `review: llm`** (BYO agent-CLI reviewer, default `claude -p` on the operator's own login; real 2×2 green: gate_only=4/quality_only=3/both=2, 0 UNKNOWN) — CodeRabbit stays wired but auth-BLOCKED by a confirmed backend bug (bug filed, decoupled from launch); `review: mock` stays the no-AI preview default |
+| L5.5 Quality review | code-quality signal | diff → findings | BUILD (llm) + INTEGRATE (coderabbit, best-effort) | ✅ **REAL quality axis live 2026-07-02 via `review: llm`** (BYO agent-CLI reviewer, default `claude -p` on the operator's own login; real 2×2 green: gate_only=4/quality_only=3/both=2, 0 UNKNOWN) — CodeRabbit auth UNBLOCKED 2026-07-03 (their backend fix after our report; adapter live-proven, see Track 3 item 11), optional 2nd reviewer; `review: mock` stays the no-AI preview default |
 | L6 Orchestrate+observe | loop/trace | wiring + `*→Trace` | consume | ✅ LangGraph + retry-on-BLOCK |
 | L6.5 Merge | gated merge | `Verdict(PASS) → MergeRecord` | OWN stage | ✅ **landed 2026-06-21** (PASS merges, BLOCK refused) |
 | L7 Deploy | ship | `Verdict(PASS) → Delivery` | INTEGRATE (own stage, delegate mechanism) | ✅ Vercel; flagship live |
@@ -259,6 +259,19 @@ decoupled (confirmed third-party backend bug). History below (spec `SPEC-coderab
    reviews, 0 UNKNOWN — gate_only=4, quality_only=3 (incl. planted case 14 AND runtime-break
    case 13), both=2. The complementarity thesis now stands on a REAL reviewer, not just the
    mock. CodeRabbit demoted to an optional second real reviewer if it ever unblocks.
+11. ✅ **CodeRabbit UNBLOCKED (2026-07-03).** CodeRabbit engineering deployed a backend fix after
+   our bug report — `coderabbit auth status` green (Pro+ seat; owner-terminal login with
+   `$env:DISPLAY="1"` for the separate client-side Windows bug). First real authenticated runs
+   exposed three adapter-contract gaps, all fixed + regression-tested: (a) `--agent` streams
+   **NDJSON events** (context/status/finding/complete lines), not a `{"findings":[...]}` doc —
+   parser rewritten, truncated streams = UNKNOWN never CLEAN; (b) the CLI requires an explicit
+   `--base` branch — throwaway repo pins `sembl-review-base`; (c) diffs modifying existing
+   files couldn't `git apply` against an empty base — pre-image now synthesized from the
+   diff's own hunks (before this, 12/14 corpus cases silently degraded to UNKNOWN). Live smoke:
+   planted case 14 → real FINDINGS (SQL injection flagged critical + N+1 major). Back-to-back
+   corpus runs hit CodeRabbit's **rate limit** (correctly UNKNOWN) — `eval/two_axis.py` gained
+   `--patient` (waits out the window); full real CodeRabbit 2×2 = run when the window resets.
+   Status unchanged: optional second reviewer, never load-bearing.
 
 **Track 4 — RSI-L1 readout (cheap, high-narrative):** per-executor iters-to-green + cost over the
 corpus → the "measured selection" artifact. Advances the north star's first rung.

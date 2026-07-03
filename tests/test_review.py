@@ -121,6 +121,91 @@ def test_coderabbit_redacts_unparseable_stdout():
     assert r.data["raw"]["sha256"]
 
 
+_NDJSON_STREAM = "\n".join([
+    json.dumps({"type": "review_context", "reviewType": "uncommitted",
+                "baseBranch": "sembl-review-base"}),
+    json.dumps({"type": "status", "phase": "analyzing", "status": "reviewing"}),
+    json.dumps({"type": "finding", "severity": "critical", "fileName": "src/orders.js",
+                "codegenInstructions": "SQL injection: parameterize u.id.",
+                "suggestions": ["db.query('... WHERE id = ?', [u.id])"]}),
+    json.dumps({"type": "complete", "status": "review_completed", "findings": 1}),
+])
+
+
+def test_coderabbit_parses_real_agent_ndjson_stream():
+    """Live-proof finding (2026-07-03, first real authenticated run): `--agent` streams
+    NDJSON events (context/status/finding/complete lines), NOT one {"findings":[...]} doc."""
+    r = _parse(_NDJSON_STREAM)
+    assert r.status == "FINDINGS"
+    assert r.findings[0]["file"] == "src/orders.js"
+    assert r.findings[0]["severity"] == "critical"
+    assert "SQL injection" in r.findings[0]["message"]
+
+
+def test_coderabbit_ndjson_clean_needs_complete_event():
+    clean = "\n".join([
+        json.dumps({"type": "status", "phase": "analyzing", "status": "reviewing"}),
+        json.dumps({"type": "complete", "status": "review_completed", "findings": 0}),
+    ])
+    assert _parse(clean).status == "CLEAN"
+
+
+def test_coderabbit_ndjson_truncated_stream_is_unknown_not_clean():
+    """A stream that dies before the `complete` event must not read as a clean review."""
+    truncated = json.dumps({"type": "status", "phase": "analyzing", "status": "reviewing"})
+    # a lone status line parses as a single JSON dict with no findings key — guard both paths
+    assert _parse(truncated).status == "UNKNOWN"
+    two_lines = truncated + "\n" + json.dumps({"type": "review_context"})
+    assert _parse(two_lines).status == "UNKNOWN"
+
+
+def test_coderabbit_ndjson_error_event_is_unknown():
+    stream = "\n".join([
+        json.dumps({"type": "status", "phase": "connecting", "status": "connecting"}),
+        json.dumps({"type": "error", "phase": "review", "message": "rate limited"}),
+    ])
+    r = _parse(stream)
+    assert r.status == "UNKNOWN" and r.data["reason"] == "rate limited"
+
+
+def test_coderabbit_passes_pinned_base_branch(monkeypatch):
+    """Live-proof finding: the real CLI refuses to review without a resolvable base branch —
+    the throwaway repo pins its branch name and review() passes it via --base."""
+    from types import SimpleNamespace
+    from sembl_stack.adapters.review_coderabbit import _BASE_BRANCH
+    monkeypatch.setattr("sembl_stack.adapters.review_coderabbit.shutil.which", lambda b: "cr.exe")
+    calls = []
+
+    def fake_run(cmd, **kwargs):
+        calls.append(cmd)
+        return SimpleNamespace(returncode=0, stdout=json.dumps({"findings": []}), stderr="")
+
+    monkeypatch.setattr("sembl_stack.adapters.review_coderabbit.subprocess.run", fake_run)
+    CodeRabbitReviewAdapter().review(_CLEAN)
+    init = calls[0]
+    assert init[:2] == ["git", "init"] and _BASE_BRANCH in init
+    final = calls[-1]
+    assert final[final.index("--base") + 1] == _BASE_BRANCH
+
+
+def test_coderabbit_materializes_modification_diffs(tmp_path):
+    """Live-proof finding (real 2x2 run): a diff that MODIFIES an existing file cannot
+    `git apply` against an empty base commit — the base must synthesize the pre-image from
+    the diff's own hunks. Only greenfield diffs applied before this, so 12/14 corpus cases
+    silently degraded to UNKNOWN."""
+    from sembl_stack.adapters.review_coderabbit import _materialize_diff
+    mod_diff = ("diff --git a/src/app.js b/src/app.js\n"
+                "--- a/src/app.js\n+++ b/src/app.js\n"
+                "@@ -2,3 +2,3 @@\n"
+                " export function run() {\n"
+                "-  return legacy();\n"
+                "+  return modern();\n"
+                " }\n")
+    assert _materialize_diff(str(tmp_path), mod_diff) is None   # applied cleanly
+    body = (tmp_path / "src" / "app.js").read_text(encoding="utf-8")
+    assert "return modern();" in body and "legacy" not in body
+
+
 def test_coderabbit_unknown_on_timeout(monkeypatch):
     import subprocess
     monkeypatch.setattr("sembl_stack.adapters.review_coderabbit.shutil.which", lambda b: "cr.exe")

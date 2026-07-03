@@ -29,7 +29,7 @@
 | 5 | Target date | **~July 14** (≈2 weeks; checklist-gated, not calendar-gated) |
 | 6 | Try-it scope | **Local loop (spec→gate→merge) = the try-path; through-deploy = showcase** (BYO-deploy documented) |
 | 7 | Showcase | **Polish the existing flagship feedback board** (real, deployed, gated, auth-fixed) |
-| 8 | CodeRabbit | **DECOUPLED from the launch gate (2026-07-02)** — trial opened, CLI installed + Claude/Codex agent-integrated, but real auth is blocked by a confirmed CodeRabbit **backend** bug (org-listing tRPC procedure rejects a valid OAuth Bearer token, demanding a cookie session — traced to the wire, bug report filed). Outside sembl's control; launch proceeds on the already-proven **mock + shell + 2×2 thesis** (gate_only=6, quality_only=1). Real-CLI proof becomes an opportunistic enhancement, swapped in the moment CodeRabbit fixes it or a paid Agentic key is purchased — never a blocker. |
+| 8 | CodeRabbit | **AUTH UNBLOCKED 2026-07-03** (CodeRabbit deployed a backend fix after our bug report; Pro+ seat live) — still **decoupled from the launch gate**, now as bonus proof. Adapter live-proven same day with three real-contract fixes (`--agent` streams NDJSON not a findings doc; `--base` branch required; modification diffs need pre-image synthesis in the throwaway repo — 12/14 corpus cases silently UNKNOWN before that). Live smoke: planted SQL-injection case → real FINDINGS. Full real 2×2 needs `--patient` pacing (back-to-back reviews rate-limit; throttled = UNKNOWN, never false-clean): `python eval/two_axis.py --reviewer coderabbit --patient`. Never load-bearing — `review: llm` remains the proven quality axis. |
 | 9 | Beta model | **Rolling QA pass ~3-4 days** (recruit early, onboard when try-it is green) |
 | 10 | Merge | **Merge the reviewed spine to master now**; all WS branch off master |
 | 11 | Versions | **sembl-stack `0.1.0`** at launch; **gate → `0.2.0`** (IDE/MCP milestone) |
@@ -66,9 +66,10 @@
 7. **Apache-2.0** relicensing landed.
 
 **Best-effort (ship without if behind, never slips the date):** breadth toward 30-40 adapters;
-Sentry/observability + rate-limits; flagship CI gate; **real CodeRabbit 2×2** (swap in the moment
-auth is unblocked — no longer load-bearing: **`review: llm` delivered the REAL quality axis
-2026-07-02** — BYO agent-CLI reviewer (`claude -p` / opencode), real 2×2 green
+Sentry/observability + rate-limits; flagship CI gate; **real CodeRabbit 2×2** (auth unblocked
+2026-07-03, adapter live-proven, planted-defect smoke green; full paced run pending — not
+load-bearing: **`review: llm` delivered the REAL quality axis 2026-07-02** — BYO agent-CLI
+reviewer (`claude -p` / opencode), real 2×2 green
 (gate_only=4, quality_only=3, both=2, 0 UNKNOWN on 14/14 live reviews)).
 
 ## 3. Day-by-day (~July 1 → 14, heavily parallelized)

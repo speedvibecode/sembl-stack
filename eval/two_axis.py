@@ -5,10 +5,14 @@ Shows each catches what the other misses: the process-class bad cases are BLOCKe
 but CLEAN to the quality reviewer; the planted quality-defect case PASSES the gate but gets
 FINDINGS from the reviewer. Complementary, not redundant.
 
-Reviewers: mock (default, deterministic, no account) or a REAL one via
-`--reviewer llm [--model m]` — the BYO agent-CLI reviewer (review_llm.py)."""
+Reviewers: mock (default, deterministic, no account), a REAL one via
+`--reviewer llm [--model m]` — the BYO agent-CLI reviewer (review_llm.py) — or
+`--reviewer coderabbit` (real authenticated CodeRabbit CLI, review_coderabbit.py).
+Add `--patient` for real reviewers: waits out rate-limit windows instead of counting a
+throttled review as UNKNOWN."""
 import json
 import sys
+import time
 from pathlib import Path
 
 from sembl.mcp_server import verify_change
@@ -39,17 +43,34 @@ def _reviewer():
         model = (sys.argv[sys.argv.index("--model") + 1]
                  if "--model" in sys.argv else None)
         return name, LLMReviewAdapter(model=model, timeout=300)
+    if name == "coderabbit":
+        from sembl_stack.adapters.review_coderabbit import CodeRabbitReviewAdapter
+        return name, CodeRabbitReviewAdapter()
     return "mock", MockReviewAdapter()
+
+
+def _patient_review(review, diff, tries: int = 6, wait: int = 300):
+    """Real reviewers rate-limit on back-to-back runs; with --patient, wait out the window
+    and retry instead of counting a throttled review as UNKNOWN."""
+    rep = review.review(diff)
+    for _ in range(tries):
+        if "rate limit" not in str(rep.data.get("reason", "")).lower():
+            return rep
+        time.sleep(wait)
+        rep = review.review(diff)
+    return rep
 
 
 def main() -> int:
     name, review = _reviewer()
+    patient = "--patient" in sys.argv
     gate_only = quality_only = both = neither = unknown = 0
     rows = []
     quality_only_cases = []
     for c in _cases():
         gate_bad = _gate(c) == "BLOCK"
-        status = review.review(c["diff"]).status
+        rep = _patient_review(review, c["diff"]) if patient else review.review(c["diff"])
+        status = rep.status
         if status == "UNKNOWN":                # a real reviewer can fail; never count as clean
             unknown += 1
         quality_bad = status == "FINDINGS"
