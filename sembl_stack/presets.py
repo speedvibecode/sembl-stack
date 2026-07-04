@@ -93,7 +93,25 @@ _STARTER_TASK = """\
 text: "Add a VALUE constant to the app module, in scope, without touching infra."
 repo: "."
 # spec_path: "./specs/001-feature"   # optional: a Spec Kit feature dir / tasks.md
+# Without a spec_path, bounds come from bounds.json next to this file (scaffolded
+# by `sembl-stack init`).
 """
+
+# The bounds contract for the starter task: the mock executor edits inside
+# editable_paths[0] and (on its deliberate first-attempt misbehaviour) strays into
+# forbidden_areas[0] — these two entries are what make the BLOCK -> retry -> PASS
+# demo work.
+_STARTER_BOUNDS = """\
+{
+  "editable_paths": ["app/"],
+  "forbidden_areas": ["infra/"],
+  "churn_budget": {"max_files": 5, "max_lines": 200}
+}
+"""
+
+
+def starter_bounds() -> str:
+    return _STARTER_BOUNDS
 
 
 def names() -> list[str]:

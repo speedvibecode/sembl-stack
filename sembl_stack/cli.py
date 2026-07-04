@@ -157,7 +157,18 @@ def _loop_cmd(task_file: str, config_path: str):
     click.echo(f"layers: {cfg.raw['layers']}")
     click.echo(f"task: {task.text!r}\nrepo: {task.repo}\n")
 
-    result = run_loop(cfg, task)
+    try:
+        result = run_loop(cfg, task)
+    except RuntimeError as exc:
+        # Stage adapters raise RuntimeError with an "L<n>: ..." prefix. A stranger's
+        # first failure should be a diagnosis, not a stack trace.
+        click.secho(f"error: {exc}", fg="red")
+        click.echo("hint: `sembl-stack doctor` checks your environment. The loop needs\n"
+                   "  - the task's repo to be a git repository with at least one commit\n"
+                   "    (the sandbox clones it), and\n"
+                   "  - a bounds source: a task spec_path, or a bounds.json next to the\n"
+                   "    task file (`sembl-stack init` scaffolds a working starter).")
+        raise SystemExit(1)
 
     click.echo(f"engine: {result.engine}")
     for attempt, status in result.history:
@@ -510,8 +521,45 @@ def init(preset, config_path, with_task, force):
         else:
             tp.write_text(presets.starter_task(), encoding="utf-8")
             click.secho("wrote task.yaml", fg="green")
+        # The starter task has no spec_path, so the L2 spec adapter needs a
+        # bounds.json beside it — without one, `loop` cannot derive a contract.
+        bp = Path("bounds.json")
+        if bp.exists() and not force:
+            click.echo("  bounds.json exists — left as-is")
+        else:
+            bp.write_text(presets.starter_bounds(), encoding="utf-8")
+            click.secho("wrote bounds.json  (the starter task's contract)", fg="green")
+        for msg in _ensure_demo_repo():
+            click.secho(msg, fg="green")
     click.echo("\nnext:\n  sembl-stack doctor          # check your environment\n"
                "  sembl-stack loop task.yaml  # run the loop")
+
+
+def _ensure_demo_repo() -> list[str]:
+    """Make the cwd loop-runnable: the sandbox clones the repo, so a fresh demo
+    directory needs a git repo with at least one commit. Existing repos are left
+    entirely alone."""
+    if Path(".git").exists():
+        return []
+    msgs = []
+    app = Path("app")
+    if not app.exists():
+        app.mkdir()
+        (app / "__init__.py").write_text(
+            '"""Demo app module — the starter task adds a constant here."""\n',
+            encoding="utf-8")
+        msgs.append("wrote app/__init__.py  (demo module the starter task edits)")
+    subprocess.run(["git", "init", "-q"], check=True)
+    subprocess.run(["git", "add", "-A"], check=True)
+    committed = subprocess.run(
+        ["git", "commit", "-q", "-m", "sembl-stack demo scaffold"],
+        capture_output=True, text=True)
+    if committed.returncode != 0:       # machine has no git identity configured
+        subprocess.run(
+            ["git", "-c", "user.name=sembl-stack", "-c", "user.email=demo@sembl.local",
+             "commit", "-q", "-m", "sembl-stack demo scaffold"], check=True)
+    msgs.append("initialized a git repo + first commit  (the sandbox clones it)")
+    return msgs
 
 
 @main.command()

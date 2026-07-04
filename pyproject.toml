@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "sembl-stack"
-version = "0.1.0"
+version = "0.1.1"
 description = "A swappable, spec-driven software factory: task to bounds, an agent writes in a sandbox, the Sembl gate judges the diff, PASS merges, deploys, and a post-deploy gate confirms or rolls back. Every stage an adapter behind one typed contract."
 readme = "README.md"
 requires-python = ">=3.10"

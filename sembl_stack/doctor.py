@@ -38,8 +38,10 @@ _EXECUTOR_BINARY = {
 }
 
 
-def run_checks(cfg=None) -> list[Check]:
-    """Structured preflight. `cfg` is an optional loaded StackConfig (config-aware checks)."""
+def run_checks(cfg=None, repo: str = ".") -> list[Check]:
+    """Structured preflight. `cfg` is an optional loaded StackConfig (config-aware checks);
+    `repo` is where a `loop` run would happen (git + bounds-source checks)."""
+    from pathlib import Path
     layers = (getattr(cfg, "raw", {}) or {}).get("layers", {}) if cfg else {}
     transport = (getattr(cfg, "raw", {}) or {}).get("transport", {}) if cfg else {}
     checks: list[Check] = []
@@ -92,6 +94,37 @@ def run_checks(cfg=None) -> list[Check]:
             "" if present else hint, required=True))
     elif execute == "mock":
         checks.append(Check("executor: mock", True, "no binary needed", required=False))
+
+    # --- loop-runnability: the sandbox clones the repo; L2 needs a bounds source ---
+    # Both were stranger-blockers found live 2026-07-04: `init` used to scaffold a
+    # task with no bounds source in a non-git directory, and `loop` crashed twice.
+    sandbox = layers.get("sandbox", "clone")
+    if sandbox in ("clone", "worktree"):
+        is_repo = (Path(repo) / ".git").exists()
+        checks.append(Check(
+            "repo (git)", is_repo,
+            "git repository" if is_repo else f"{Path(repo).resolve()} is not a git repo",
+            "" if is_repo else
+            "the sandbox clones the repo — `git init` + a first commit "
+            "(`sembl-stack init` scaffolds this for a fresh directory)"))
+    task_file = Path(repo) / "task.yaml"
+    if task_file.is_file():
+        has_spec = False
+        try:
+            import yaml
+            spec = (yaml.safe_load(task_file.read_text(encoding="utf-8")) or {}).get(
+                "spec_path")
+            has_spec = bool(spec)
+        except Exception:
+            pass
+        has_bounds = has_spec or (Path(repo) / "bounds.json").is_file()
+        checks.append(Check(
+            "bounds source", has_bounds,
+            "spec_path set" if has_spec else
+            ("bounds.json" if has_bounds else "no spec_path and no bounds.json"),
+            "" if has_bounds else
+            "L2 needs a contract: set spec_path in task.yaml, or add a bounds.json "
+            "next to it (`sembl-stack init` scaffolds one)"))
 
     # --- context graph (only when context: symgraph) ---
     if layers.get("context") == "symgraph":
