@@ -12,3 +12,5 @@ __pycache__/
 build/
 dist/
 .venv/
+eval/.checkpoint-*.json
+eval/.result-*

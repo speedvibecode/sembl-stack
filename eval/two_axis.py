@@ -9,7 +9,12 @@ Reviewers: mock (default, deterministic, no account), a REAL one via
 `--reviewer llm [--model m]` — the BYO agent-CLI reviewer (review_llm.py) — or
 `--reviewer coderabbit` (real authenticated CodeRabbit CLI, review_coderabbit.py).
 Add `--patient` for real reviewers: waits out rate-limit windows instead of counting a
-throttled review as UNKNOWN."""
+throttled review as UNKNOWN.
+
+Add `--checkpoint <file>` for real reviewers: each case's review outcome is saved as it
+lands, and a rerun skips cases already reviewed (UNKNOWNs are always retried) — so a
+killed run resumes instead of starting over. The gate axis is deterministic and cheap;
+only review outcomes are cached."""
 import json
 import sys
 import time
@@ -61,16 +66,34 @@ def _patient_review(review, diff, tries: int = 14, wait: int = 300):
     return rep
 
 
+def _load_checkpoint(path: Path, reviewer: str) -> dict:
+    if path.is_file():
+        data = json.loads(path.read_text(encoding="utf-8"))
+        if data.get("reviewer") == reviewer:
+            return data.get("cases", {})
+    return {}
+
+
 def main() -> int:
     name, review = _reviewer()
     patient = "--patient" in sys.argv
+    ckpt_path = (Path(sys.argv[sys.argv.index("--checkpoint") + 1])
+                 if "--checkpoint" in sys.argv else None)
+    done = _load_checkpoint(ckpt_path, name) if ckpt_path else {}
     gate_only = quality_only = both = neither = unknown = 0
     rows = []
     quality_only_cases = []
     for c in _cases():
         gate_bad = _gate(c) == "BLOCK"
-        rep = _patient_review(review, c["diff"]) if patient else review.review(c["diff"])
-        status = rep.status
+        if c["name"] in done:                  # cached (never UNKNOWN — those aren't saved)
+            status = done[c["name"]]
+        else:
+            rep = _patient_review(review, c["diff"]) if patient else review.review(c["diff"])
+            status = rep.status
+            if ckpt_path and status != "UNKNOWN":
+                done[c["name"]] = status
+                ckpt_path.write_text(json.dumps({"reviewer": name, "cases": done}, indent=2),
+                                     encoding="utf-8")
         if status == "UNKNOWN":                # a real reviewer can fail; never count as clean
             unknown += 1
         quality_bad = status == "FINDINGS"
