@@ -279,7 +279,12 @@ decoupled (confirmed third-party backend bug). History below (spec `SPEC-coderab
    diff's own hunks (before this, 12/14 corpus cases silently degraded to UNKNOWN). Live smoke:
    planted case 14 → real FINDINGS (SQL injection flagged critical + N+1 major). Back-to-back
    corpus runs hit CodeRabbit's **rate limit** (correctly UNKNOWN) — `eval/two_axis.py` gained
-   `--patient` (waits out the window); full real CodeRabbit 2×2 = run when the window resets.
+   `--patient` (waits out the window); full real CodeRabbit 2×2 ✅ **DONE 2026-07-04** after six
+   failed monolithic attempts — root cause was the eval losing all progress on any mid-run death;
+   fixed with `--checkpoint` (per-case review outcomes persisted as they land, reruns resume).
+   Result, 14/14 real reviews, 0 UNKNOWN: **gate_only=4, quality_only=3** (planted case 14, runtime
+   -break case 13, AND 01-greenfield-snake), **both=2, neither=5** — complementarity thesis now
+   proven on BOTH real reviewers (llm + CodeRabbit), nearly identical grids.
    Status unchanged: optional second reviewer, never load-bearing.
 
 **Track 4 — RSI-L1 readout (cheap, high-narrative):** per-executor iters-to-green + cost over the
