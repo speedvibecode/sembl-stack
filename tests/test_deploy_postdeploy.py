@@ -103,6 +103,10 @@ def test_vercel_deploy_adapter_records_failure(monkeypatch, tmp_path):
     def fake_run(cmd, **kwargs):
         return SimpleNamespace(returncode=1, stdout="", stderr="not linked")
 
+    # The adapter resolves the CLI via shutil.which first — without this the test
+    # only passes on machines that happen to have vercel installed (CI does not).
+    monkeypatch.setattr("sembl_stack.adapters.deploy_vercel.shutil.which",
+                        lambda name: "vercel")
     monkeypatch.setattr("sembl_stack.adapters.deploy_vercel.subprocess.run", fake_run)
 
     delivery = VercelDeployAdapter(timeout=5).deploy(str(tmp_path))
