@@ -202,8 +202,17 @@ flagship FIRST**; fan out to ~50 adapters only AFTER. Evidence ✅ done; spine �
    output), codex-built Textual first-run wizard (welcome → BYO choice w/ preflight → prefs),
    `--reconfigure`, and profile-as-default `loop` (an explicit repo `sembl.stack.yaml` always
    wins). 126 committed + 52 local tests green.
-5. **TUI Phase 2** — the stage rail actually running stages under the profile; CBM index trigger,
-   reconcile panel, live deploy/postdeploy panels, MurphyScan readiness screen.
+5. ~~**TUI Phase 2**~~ — ✅ **DONE 2026-07-03**: the stage rail now RUNS the loop under the
+   configured profile. Press `r` in the bare-`sembl-stack` wizard and the real `loop.run`
+   (plan → execute → verify, retry-on-BLOCK) executes against the repo's `task.yaml`,
+   streaming per-stage status (pending/running/pass/fail) into the rail and showing the final
+   verdict panel; a PASS advances the resume pointer past the loop stages. Orchestration glue
+   is `runner.py` (pure, headless — a TUI run and a headless `loop` run are byte-identical,
+   same adapters wrapped in thin event-emitting proxies). The blocking loop runs in an
+   executor with events drained on the app loop via a queue (no `call_from_thread`, which
+   deadlocks a threaded worker under Textual's `run_test`). Still deferred (TODOs in
+   `wizard.py`): CBM index trigger, reconcile panel, live deploy/postdeploy panels, MurphyScan
+   readiness screen.
 
 **Track 3 — the quality axis (L5.5) — ✅ CLOSED 2026-07-02 via `review: llm`; CodeRabbit
 decoupled (confirmed third-party backend bug). History below (spec `SPEC-coderabbit-prep.md`):**
