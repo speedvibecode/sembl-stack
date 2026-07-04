@@ -37,3 +37,17 @@ sembl-stack = "sembl_stack.cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["sembl_stack"]
+
+[tool.hatch.build.targets.sdist]
+# Explicit allowlist, not "everything minus .gitignore": hatchling's default sdist
+# packed the whole working tree, including examples/flagship-feedback-board's
+# node_modules/.next build output/.vercel/.env.local (a real Next.js app checked out
+# for local dev, not part of this package) — a 61MB sdist. Only what installs/builds
+# the CLI belongs here.
+include = [
+  "/sembl_stack",
+  "/tests",
+  "/README.md",
+  "/LICENSE",
+  "/SECURITY.md",
+]
