@@ -59,6 +59,7 @@ interface, which is what makes every stage swappable.
 | **L3** Execute | write the change | `Task + Bounds → Change` | adapter (claude / aider / opencode) |
 | **L4** Sandbox | contain a bad diff | `Change → Change` | adapter (disposable clone) |
 | **L5** Verify | gate the diff | `Change + Bounds → Verdict` | **the gate** (`sembl`) |
+| **L5.5** Review (advisory) | code-quality signal | `diff → findings` | adapter (`llm` — BYO agent-CLI reviewer; CodeRabbit optional) |
 | **L6** Orchestrate | loop, retry, trace | wiring + `* → Trace` | **we own** (LangGraph) |
 | **L6.5** Merge | gated merge | `Verdict(PASS) → MergeRecord` | **we own** |
 | **L7** Deploy | ship | `Verdict(PASS) → Delivery` | adapter |
