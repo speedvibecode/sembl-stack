@@ -77,7 +77,7 @@ repo) → TARGET (product, plane B)`, everything speaking **MCP** at the hub.
 | L3 Execute | write | `Task+Bounds → Change` | consume | ✅ ×3 (claude / aider / opencode·MiniMax) |
 | L4 Sandbox | contain | `Change → Change` | consume | ✅ disposable clone (alias worktree) |
 | L5 Verify (gate) | gate the diff | `Change+Bounds → Verdict` | **OWN gate** | ✅ green, sembl 0.1.20 |
-| L5.5 Reconcile (per-PR) | spec↔code drift | `SpecGraph+CodeGraph → Report` | INTEGRATE (advisory) | ✅ **live: `reconcile --live` drives a real CBM index** (landed 2026-06-22); flagship live-proof pending owner run |
+| L5.5 Reconcile (per-PR) | spec↔code drift | `SpecGraph+CodeGraph → Report` | INTEGRATE (advisory) | ✅ **live-proven 2026-07-04**: `reconcile --live` against the real flagship on a real CBM index (2,953 code nodes) → ALIGNED report, exit 0 |
 | L5.5 Quality review | code-quality signal | diff → findings | BUILD (llm) + INTEGRATE (coderabbit, best-effort) | ✅ **REAL quality axis live 2026-07-02 via `review: llm`** (BYO agent-CLI reviewer, default `claude -p` on the operator's own login; real 2×2 green: gate_only=4/quality_only=3/both=2, 0 UNKNOWN) — CodeRabbit auth UNBLOCKED 2026-07-03 (their backend fix after our report; adapter live-proven, see Track 3 item 11), optional 2nd reviewer; `review: mock` stays the no-AI preview default |
 | L6 Orchestrate+observe | loop/trace | wiring + `*→Trace` | consume | ✅ LangGraph + retry-on-BLOCK |
 | L6.5 Merge | gated merge | `Verdict(PASS) → MergeRecord` | OWN stage | ✅ **landed 2026-06-21** (PASS merges, BLOCK refused) |
@@ -187,7 +187,11 @@ flagship FIRST**; fan out to ~50 adapters only AFTER. Evidence ✅ done; spine �
    `53ad50c`). New `CbmCodeGraph` adapter drives codebase-memory-mcp headlessly behind a
    `codegraph` layer; `reconcile --live --repo` builds the graph from a real CBM index (no
    hand-passed JSON). Subprocess-contained, advisory-only. 7 new tests, 88 passed / 1 skipped.
-   *Remaining:* the flagship live-proof run (owner, §7 of the spec) → hand the report to Claude.
+   *Flagship live-proof ✅ DONE 2026-07-04* (ran in-session, not owner-gated after all): spec
+   §7 commands against `examples/flagship-feedback-board` on a real CBM index — 2,953 code
+   nodes, report `ALIGNED` ("spec concepts are represented"), advisory exit 0. Reviewed:
+   honest but thin on the spec side (a one-line text spec yields 2 spec nodes); a richer
+   divergence demo would need a real Spec-Kit dir as `--spec` input — noted, not blocking.
 
 **Track 2 — the `sembl stack` TUI (parallel):**
 3. ~~**TUI Phase 0**~~ — ✅ **DONE 2026-06-22** (`docs/SPEC-tui-phase0.md`, commit `bc03beb`).

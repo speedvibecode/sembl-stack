@@ -109,32 +109,25 @@ def _resolve_config(config_path: str, repo: str) -> str | None:
 
 @click.group(invoke_without_command=True)
 @click.option("--reconfigure", is_flag=True,
-              help="Run first-time onboarding again before opening the stage rail.")
+              help="Redo the agent & keys step even if a profile exists.")
 @click.version_option()
 @click.pass_context
 def main(ctx, reconfigure):
     """sembl-stack — an open, swappable spec-driven coding factory.
 
-    Run bare (no subcommand) to launch the guided TUI wizard (New/Existing -> stage rail,
-    leave/continue-anywhere via .sembl/session.json).
+    Run bare (no subcommand) in your repo directory to launch the guided run:
+    repo -> agent & keys (live status) -> describe the task -> watch the gated run.
+    Every subcommand below is the same machinery, scriptable.
     """
     if ctx.invoked_subcommand is not None:
         return
-    from . import onboarding, profile, wizard
-    needs_onboarding = reconfigure or profile.load() is None
-    if needs_onboarding and not onboarding.available():
+    from . import guide
+    if not guide.available():
         raise click.UsageError(
-            "the guided TUI needs Textual - `pip install \"sembl-stack[tui]\"`.\n"
+            "the guided run needs questionary (a core dependency — this install is "
+            "broken): `pip install -U sembl-stack`.\n"
             "  (or run a stage directly, e.g. `sembl-stack loop task.yaml`)")
-    if not wizard.available():
-        raise click.UsageError(
-            "the guided TUI needs Textual — `pip install \"sembl-stack[tui]\"`.\n"
-            "  (or run a stage directly, e.g. `sembl-stack loop task.yaml`)")
-    if needs_onboarding:
-        configured = onboarding.launch(".")
-        if configured is None:
-            return
-    wizard.launch(".")
+    guide.launch(".", reconfigure=reconfigure)
 
 
 @click.argument("task_file", type=click.Path(exists=True, dir_okay=False))
@@ -515,51 +508,18 @@ def init(preset, config_path, with_task, force):
     cfg_p.write_text(presets.render(preset), encoding="utf-8")
     click.secho(f"wrote {config_path}  (preset: {preset})", fg="green")
     if with_task:
-        tp = Path("task.yaml")
-        if tp.exists() and not force:
-            click.echo("  task.yaml exists — left as-is")
-        else:
-            tp.write_text(presets.starter_task(), encoding="utf-8")
-            click.secho("wrote task.yaml", fg="green")
         # The starter task has no spec_path, so the L2 spec adapter needs a
-        # bounds.json beside it — without one, `loop` cannot derive a contract.
-        bp = Path("bounds.json")
-        if bp.exists() and not force:
-            click.echo("  bounds.json exists — left as-is")
-        else:
-            bp.write_text(presets.starter_bounds(), encoding="utf-8")
-            click.secho("wrote bounds.json  (the starter task's contract)", fg="green")
-        for msg in _ensure_demo_repo():
+        # bounds.json beside it; the clone sandbox needs a committed git repo.
+        from . import scaffold
+        here = Path(".")
+        for msg in scaffold.write_starter_files(here, preset, force=force,
+                                                include_config=False):
+            click.secho(msg, fg="green")
+        for msg in scaffold.ensure_demo_repo(here):
             click.secho(msg, fg="green")
     click.echo("\nnext:\n  sembl-stack doctor          # check your environment\n"
-               "  sembl-stack loop task.yaml  # run the loop")
-
-
-def _ensure_demo_repo() -> list[str]:
-    """Make the cwd loop-runnable: the sandbox clones the repo, so a fresh demo
-    directory needs a git repo with at least one commit. Existing repos are left
-    entirely alone."""
-    if Path(".git").exists():
-        return []
-    msgs = []
-    app = Path("app")
-    if not app.exists():
-        app.mkdir()
-        (app / "__init__.py").write_text(
-            '"""Demo app module — the starter task adds a constant here."""\n',
-            encoding="utf-8")
-        msgs.append("wrote app/__init__.py  (demo module the starter task edits)")
-    subprocess.run(["git", "init", "-q"], check=True)
-    subprocess.run(["git", "add", "-A"], check=True)
-    committed = subprocess.run(
-        ["git", "commit", "-q", "-m", "sembl-stack demo scaffold"],
-        capture_output=True, text=True)
-    if committed.returncode != 0:       # machine has no git identity configured
-        subprocess.run(
-            ["git", "-c", "user.name=sembl-stack", "-c", "user.email=demo@sembl.local",
-             "commit", "-q", "-m", "sembl-stack demo scaffold"], check=True)
-    msgs.append("initialized a git repo + first commit  (the sandbox clones it)")
-    return msgs
+               "  sembl-stack loop task.yaml  # run the loop\n"
+               "  sembl-stack                 # or the guided TUI")
 
 
 @main.command()
@@ -702,8 +662,16 @@ def apply_run(run_id, repo, allow_warn, allow_dirty, check_only):
     click.secho(f"{action} {run_id} -> {repo_path}", fg="green")
 
 
+# Written at repo root by the guided run (guide.py) on every task/reconfigure — the
+# tool's own per-run control files, not user work-in-progress. Their presence must
+# never count as a dirty tree, or the guided flow would block its own `apply` on
+# every single run (task.yaml/bounds.json are rewritten each task step).
+_TOOL_OWNED_ROOT_FILES = {"task.yaml", "bounds.json", "sembl.stack.yaml"}
+
+
 def _tree_is_dirty(repo: Path) -> bool:
-    """Uncommitted changes in the working tree, ignoring the run store (.sembl/)."""
+    """Uncommitted changes in the working tree, ignoring the run store (.sembl/) and
+    the tool's own control files (task.yaml/bounds.json/sembl.stack.yaml at repo root)."""
     proc = subprocess.run(
         ["git", "status", "--porcelain"], cwd=repo, capture_output=True, text=True,
         encoding="utf-8", errors="replace")
@@ -711,7 +679,8 @@ def _tree_is_dirty(repo: Path) -> bool:
         return False
     # porcelain v1: `XY path` (rename: `XY old -> new`); path starts at column 3
     paths = (line[3:].strip().strip('"') for line in proc.stdout.splitlines() if len(line) > 3)
-    return any(p and not p.startswith(".sembl") for p in paths)
+    return any(p and not p.startswith(".sembl") and p.lower() not in _TOOL_OWNED_ROOT_FILES
+              for p in paths)
 
 
 def _git_apply(repo: Path, diff: str, *, check_only: bool) -> None:

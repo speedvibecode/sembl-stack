@@ -94,7 +94,13 @@ def run_executor(cmd: list[str], cwd: str, timeout: int, **run_kwargs):
     is caught here (its partial stdout/stderr preserved) instead of being allowed to
     propagate and abort the whole loop — the caller records `timed_out` in the report so
     the gate stage can convert it to a BLOCK rather than a crash.
+
+    stdin is DEVNULL by default: a headless factory executor must never be able to sit
+    waiting on interactive input (e.g. a CLI's first-run provider setup) — that hangs
+    silently, since its stdout/stderr are captured into pipes the user can't see. Cut
+    off, the CLI hits EOF immediately and fails fast with a visible error instead.
     """
+    run_kwargs.setdefault("stdin", subprocess.DEVNULL)
     try:
         # encoding/errors explicit: agents emit UTF-8 (box-drawing, emoji, ✓). The default
         # text=True decodes with the locale codec (cp1252 on Windows), which crashes the

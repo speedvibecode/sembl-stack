@@ -27,8 +27,30 @@ task ─▶ bounds ─▶ execute ─▶ sandbox ─▶ SEMBL GATE ─▶ merge 
 ## Quickstart
 
 ```bash
-pip install sembl-stack sembl     # the stack + the gate it runs at its core
-sembl-stack init                  # scaffold sembl.stack.yaml + task.yaml from a preset
+pip install sembl-stack
+cd your-repo
+sembl-stack
+```
+
+That's the whole quickstart. Bare `sembl-stack` launches the guided run — an
+OpenCode-style TUI that walks you through, one screen at a time:
+
+1. **repo** — confirms the repo it detected (a fresh non-git directory is offered a
+   safe demo scaffold instead)
+2. **agent & keys** — every way to run AI work, with **live status**: is Claude Code
+   installed and logged in, which API-key env vars are set, is OpenCode on PATH — and
+   exactly what to do for any option you're missing (mock always works, zero keys)
+3. **task** — describe the change in plain English and pick which paths the agent may
+   touch (suggested from your repo); the tool writes `task.yaml`/`bounds.json`, you
+   never do
+4. **run** — the live stage rail (BLOCK → feedback → retry → PASS), then the verdict
+   with its receipt and the one next command
+
+Everything the guide does is also a scriptable command (same machinery, byte-identical
+runs — that's the point):
+
+```bash
+sembl-stack init                  # scaffold config + starter task + demo repo
 sembl-stack doctor                # config-aware preflight
 sembl-stack loop task.yaml        # plan → execute → gate → retry-on-BLOCK
 sembl-stack runs [<id>]           # list / inspect runs
@@ -97,13 +119,12 @@ Every run leaves a complete paper trail in `.sembl/runs/<id>/`:
 └─ trace.json         # the timeline
 ```
 
-## The guided TUI (optional)
+## The guided TUI
 
-`pip install "sembl-stack[tui]"` adds a Textual wizard. Run bare `sembl-stack` and
-press `r`: the stage rail runs the real loop under your configured profile,
-streaming per-stage status (pending/running/pass/fail) live and showing the final
-verdict — byte-identical to a headless `sembl-stack loop`, because it drives the
-same adapters.
+The guide is the default surface (see Quickstart) and a core dependency — no extra
+install. It streams the real loop live under your configured profile and is
+byte-identical to a headless `sembl-stack loop`, because it drives the same adapters.
+Re-run the agent & keys step anytime with `sembl-stack --reconfigure`.
 
 ## The full picture
 

@@ -69,6 +69,7 @@ def test_run_stages_streams_events_and_persists_the_run(tmp_path):
     seq = [(e.stage, e.state) for e in events]
     assert seq == [
         ("bounds", "running"), ("bounds", "done"),
+        ("sandbox", "done"),                   # L4 made visible: the cage opened
         ("loop", "running"), ("loop", "done"),
         ("verify", "running"), ("verify", "done"),
         ("verify", "done"),                    # the final-verdict event
@@ -94,6 +95,30 @@ def test_retry_on_block_emits_one_loop_event_per_attempt(tmp_path):
     verify_states = [(e.state, e.detail) for e in events if e.stage == "verify"]
     assert ("fail", "BLOCK") in verify_states      # attempt 1's verdict shown honestly
     assert verify_states[-1] == ("done", "PASS")
+    # a fresh sandbox is opened (and reported) every attempt, not just the first
+    sandbox_events = [e for e in events if e.stage == "sandbox"]
+    assert [e.detail for e in sandbox_events] == \
+        ["attempt 1 — disposable clone", "attempt 2 — disposable clone"]
+
+
+def test_sandbox_open_failure_emits_a_fail_event(tmp_path):
+    events = []
+    cfg = _cfg(tmp_path, ["PASS"])
+
+    class _DeadSandbox:
+        def open(self, repo):
+            raise RuntimeError("clone failed")
+
+    cfg.sandbox = _DeadSandbox()
+    task = SimpleNamespace(text="add x", repo=str(tmp_path))
+
+    try:
+        runner.run_stages(cfg, task, events.append)
+        raise AssertionError("expected the sandbox crash to propagate")
+    except RuntimeError:
+        pass
+    sandbox_events = [e for e in events if e.stage == "sandbox"]
+    assert [(e.state, e.detail) for e in sandbox_events] == [("fail", "attempt 1")]
 
 
 def test_executor_failure_still_ends_with_a_fail_event(tmp_path):

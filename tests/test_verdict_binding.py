@@ -138,6 +138,28 @@ def test_run_store_noise_does_not_count_as_dirty(repo):
     assert res.exit_code == 0, res.output
 
 
+def test_guided_runs_control_files_do_not_count_as_dirty(repo):
+    # task.yaml/bounds.json/sembl.stack.yaml are the guided run's own control files
+    # (guide.py rewrites them every task step) — their presence must never block
+    # applying an already-gated patch (2026-07-04 field bug: every guided apply failed).
+    (repo / "task.yaml").write_text('{"text": "x"}', encoding="utf-8")
+    (repo / "bounds.json").write_text('{"editable_paths": ["src/"]}', encoding="utf-8")
+    (repo / "sembl.stack.yaml").write_text("layers:\n  context: none\n", encoding="utf-8")
+    rid = _make_run(repo)
+    res = CliRunner().invoke(main, ["apply", rid, "--repo", str(repo)])
+    assert res.exit_code == 0, res.output
+    assert "y = 2" in (repo / "src" / "app.py").read_text(encoding="utf-8")
+
+
+def test_a_genuinely_unrelated_file_named_like_a_control_file_still_blocks(repo):
+    # the exclusion is root-relative only — src/bounds.json is real user work
+    (repo / "src" / "bounds.json").write_text("{}", encoding="utf-8")
+    rid = _make_run(repo)
+    res = CliRunner().invoke(main, ["apply", rid, "--repo", str(repo)])
+    assert res.exit_code != 0
+    assert "uncommitted changes" in res.output
+
+
 # ── merge: verdict's judged file set must match what the merge ships ────────────
 
 def _verdict_file(tmp_path, verdict):

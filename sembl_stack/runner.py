@@ -34,6 +34,7 @@ class StageEvent:
     stage: str          # rail stage name ("bounds" | "loop" | "verify")
     state: str          # "running" | "done" | "fail"
     detail: str = ""    # e.g. "attempt 2" or the verdict status
+    diff: str = ""      # execute-done carries the attempt's unified diff (live view)
 
 
 class _SpecProxy:
@@ -51,6 +52,28 @@ class _SpecProxy:
         return bounds
 
 
+class _SandboxProxy:
+    """L4 made visible: `loop.py`'s execute() node opens a fresh sandbox every
+    attempt but nothing ever reported it — the rail jumped straight from bounds to
+    execute as if the cage didn't exist. One line per attempt, real (fires exactly
+    when `cfg.sandbox.open()` is actually called), never fabricated."""
+
+    def __init__(self, inner, emit: Emit):
+        self._inner, self._emit = inner, emit
+        self._attempt = 0
+
+    def open(self, repo):
+        self._attempt += 1
+        try:
+            sandbox = self._inner.open(repo)
+        except Exception:
+            self._emit(StageEvent("sandbox", "fail", f"attempt {self._attempt}"))
+            raise
+        self._emit(StageEvent(
+            "sandbox", "done", f"attempt {self._attempt} — disposable clone"))
+        return sandbox
+
+
 class _ExecuteProxy:
     def __init__(self, inner, emit: Emit):
         self._inner, self._emit = inner, emit
@@ -66,7 +89,8 @@ class _ExecuteProxy:
             # anyway so the user sees which attempt died.
             self._emit(StageEvent("loop", "fail", f"attempt {self._attempt} crashed"))
             raise
-        self._emit(StageEvent("loop", "done", f"attempt {self._attempt}"))
+        self._emit(StageEvent("loop", "done", f"attempt {self._attempt}",
+                              diff=getattr(result, "diff", "") or ""))
         return result
 
 
@@ -123,8 +147,9 @@ def run_stages(cfg, task: Task, emit: Emit) -> LoopResult:
     """Run the real loop with stage events streamed to `emit`. Blocking — call it from a
     worker thread; `emit` fires on that thread (marshal to the UI thread yourself,
     e.g. Textual's `call_from_thread`)."""
-    wrapped = copy.copy(cfg)             # shallow: same adapters, three wrapped in proxies
+    wrapped = copy.copy(cfg)             # shallow: same adapters, four wrapped in proxies
     wrapped.spec = _SpecProxy(cfg.spec, emit)
+    wrapped.sandbox = _SandboxProxy(cfg.sandbox, emit)
     wrapped.execute = _ExecuteProxy(cfg.execute, emit)
     wrapped.verify = _VerifyProxy(cfg.verify, emit)
     result = run_loop(wrapped, task)

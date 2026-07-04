@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "sembl-stack"
-version = "0.1.1"
+version = "0.2.0"
 description = "A swappable, spec-driven software factory: task to bounds, an agent writes in a sandbox, the Sembl gate judges the diff, PASS merges, deploys, and a post-deploy gate confirms or rolls back. Every stage an adapter behind one typed contract."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -17,6 +17,9 @@ dependencies = [
                       # default install runs it, not the built-in fallback runner.
   "sembl>=0.1.20",    # L5 gate + L2 spec engine. Core because the DEFAULT config gates
   "mcp>=1.0",         # with sembl over MCP — a bare install must run the default stack.
+  "questionary>=2.0", # the guided run IS the product surface: bare `sembl-stack` must
+                      # always launch the inline step-by-step guide (owner UX decision
+                      # 2026-07-04: Claude Code-style inline prompts, NOT a full-screen app).
 ]
 
 [project.optional-dependencies]
