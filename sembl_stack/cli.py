@@ -23,7 +23,7 @@ from pathlib import Path
 import click
 import yaml
 
-from . import artifacts, doctor as doctor_mod, presets, registry
+from . import artifacts, doctor as doctor_mod, drift, presets, registry
 from .artifacts import Bounds, Change, Delivery, SpecGraph, Task, Verdict
 from .config import load
 from .loop import run as run_loop
@@ -266,6 +266,77 @@ def reconcile(specgraph_path, codegraph_path, live, repo, config_path, out):
     else:
         raise click.UsageError("supply --codegraph <file> or --live")
     _emit(reconcile_spec_code(spec_graph, code_graph), out)
+
+
+@main.command(name="drift-check")
+@click.option("--specgraph", "specgraph_path", required=True,
+              type=click.Path(exists=True, dir_okay=False))
+@click.option("--codegraph", "codegraph_path", default=None,
+              type=click.Path(exists=True, dir_okay=False),
+              help="Code graph JSON (hand-passed). Omit and pass --live to build it from CBM.")
+@click.option("--live", is_flag=True,
+              help="Build the code graph live from a real codebase-memory-mcp index.")
+@click.option("--repo", default=".", help="Repo to index/graph when --live.")
+@click.option("--config", "config_path", default="sembl.stack.yaml")
+@click.option("--state", "state_path", default=drift.DEFAULT_STATE_PATH,
+              help="Where to persist drift-check state across runs (default .sembl/drift-state.json).")
+@click.option("--out", default=None,
+              help="Write the full check payload (report + new/pending/resolved) here (else stdout).")
+def drift_check(specgraph_path, codegraph_path, live, repo, config_path, state_path, out):
+    """Track 5 item 3: ambient drift check — advisory, never a gate, never blocks.
+
+    Same SpecGraph/code-graph sources as `reconcile`, plus a persisted state file so
+    repeated checks only surface what's NEW since the last review, instead of
+    re-reporting the same drift forever.
+    """
+    spec_graph = _read_specgraph(specgraph_path)
+    if live:
+        cfg = load(_resolve_config(config_path, repo))
+        code_graph = cfg.codegraph.code_graph(repo) if cfg.codegraph is not None else {}
+    elif codegraph_path:
+        code_graph = json.loads(Path(codegraph_path).read_text(encoding="utf-8-sig"))
+    else:
+        raise click.UsageError("supply --codegraph <file> or --live")
+
+    result = drift.check_drift(spec_graph, code_graph, state_path=state_path)
+    payload = {
+        "report": result.report.to_dict(),
+        "new": result.new,
+        "pending": result.pending,
+        "resolved": result.resolved,
+    }
+    text = json.dumps(payload, indent=2, ensure_ascii=False)
+    if out:
+        Path(out).write_text(text, encoding="utf-8")
+        click.echo(f"wrote drift-check -> {out}")
+    else:
+        click.echo(text)
+    click.echo(
+        f"drift: {len(result.new)} new, {len(result.pending)} pending, "
+        f"{len(result.resolved)} resolved (state: {state_path})", err=True)
+
+
+@main.command(name="drift-review")
+@click.option("--state", "state_path", default=drift.DEFAULT_STATE_PATH,
+              help="Drift state file to read (default .sembl/drift-state.json).")
+@click.option("--ack", is_flag=True,
+              help="Acknowledge everything shown — the batched review checkpoint.")
+def drift_review(state_path, ack):
+    """Track 5 item 3: the batched review checkpoint for ambient drift.
+
+    Shows every currently-unacknowledged finding without recomputing reconciliation.
+    `--ack` marks what's shown as reviewed, so the next `drift-check` stays quiet about it
+    unless it changes again.
+    """
+    pending = drift.pending_drift(state_path=state_path)
+    if not pending:
+        click.echo("no pending drift")
+        return
+    for finding in pending:
+        click.echo(f"- [{finding.get('kind')}] {finding.get('message')}")
+    if ack:
+        n = drift.acknowledge_drift(state_path=state_path)
+        click.echo(f"acknowledged {n} finding(s)", err=True)
 
 
 @main.command()

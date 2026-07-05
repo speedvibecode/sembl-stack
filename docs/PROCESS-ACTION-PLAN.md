@@ -15,12 +15,15 @@
 > merged; feature branches deleted). Dates in this doc are sequence markers, not deadlines.
 > Re-verify state against the repo before trusting any status line.
 >
-> **▶ For execution, start here: `SPEC-ideation-and-chat-shell.md` §9 (Track 5)** — the
-> personal-use-first direction locked 2026-07-05. The prior `LAUNCH-PREP-JULY1.md` public-launch
-> runbook (big-bang ~July 14: channels, waitlist, MurphyScan, design-partner QA) is **archived,
-> not pursued right now** — owner decision 2026-07-05: dogfooding the factory on itself comes
-> first; public launch is revisited after, not on a fixed date. The runbook is deleted (recoverable
-> via git history) rather than left to mislead a future session.
+> **▶ For execution, start here: `SPEC-ideation-and-chat-shell.md` §9 (Track 5) for the drift/
+> ideation mechanics, and `SPEC-theia-factory-ide.md` for the surface they'll render in** — the
+> latter, locked later the same day (2026-07-05), supersedes this doc's §5 O7 and §8's dashboard-app
+> description; **nothing under it is built yet**, and per its own §5 build order the drift daemon
+> must be proven headless first, before any Theia work starts. The prior `LAUNCH-PREP-JULY1.md`
+> public-launch runbook (big-bang ~July 14: channels, waitlist, MurphyScan, design-partner QA) is
+> **archived, not pursued right now** — owner decision 2026-07-05: dogfooding the factory on itself
+> comes first; public launch is revisited after, not on a fixed date. The runbook is deleted
+> (recoverable via git history) rather than left to mislead a future session.
 
 ---
 
@@ -122,20 +125,25 @@ real end-to-end manual testing of `guide.py` surfaced a severe silent bug (a fre
 repo ran the mock executor forever regardless of the chosen agent — see `sembl_stack/loop.py`/
 `guide.py` fix, commit `476d39f`) and the owner concluded the inline-CLI/chat-transcript shape
 itself was the problem: "you can't see it all at once." A chat shell is still fundamentally a
-scrolling linear feed — same failure mode as the TUI it was meant to replace.** **O7
-[RELOCKED 2026-07-05] the target surface is a graphical multi-pane dashboard app** — NOT a
-scrolling transcript of any kind (chat-styled or terminal-styled): persistent, simultaneously
-visible panels (repo/agent/layers status, run history, task form, live stage timeline, diff
-viewer, verdict) so no state requires scrolling back to see. Backend is a local FastAPI+WebSocket
-server reusing `runner.py`/`loop.py`/adapters/`guide.py`'s pure helpers unchanged (zero business
-logic rewrite — only the surface changes); shell is a native window via `pywebview` (`sembl-stack
-gui`), not a browser tab or Electron. `guide.py`'s inline CLI remains as the scriptable/headless
-path (`sembl-stack loop`), not retired. · **O8 [LOCKED 2026-07-05] bounded-LLM-into-fixed-schema is the
-one deliberate, scoped exception to "no LLM in the loop,"** reused at three points — `guide.py`'s
-existing `ai_suggest_paths`, the chat shell's task-parse block, and the new L0.5 Idea→Spec
-Q&A — and nowhere else. In every case: LLM proposes into a fixed structured schema it cannot
-extend, a human confirms/edits before it's locked in, and it never touches the gate (L5/L8). See
-`SPEC-ideation-and-chat-shell.md`.
+scrolling linear feed — same failure mode as the TUI it was meant to replace.** ~~O7
+[RELOCKED 2026-07-05] the target surface is a graphical multi-pane dashboard app~~ **SUPERSEDED
+same day, in a separate design conversation, after arguing through "is this just Cursor with extra
+chrome" and landing on spec-code drift as the one differentiator that survived that argument — see
+`SPEC-theia-factory-ide.md`.** The pywebview dashboard described below (persistent panels,
+FastAPI+WebSocket backend, `sembl-stack gui`) was never built; do not build it. **O7 [RELOCKED
+2026-07-05, v2] the target surface is a forked-Theia IDE**: code-first center (graph/preview as
+sibling tabs, not the default), a swappable L0–L8 pipeline strip across the top, an open-ended
+discuss panel (not a one-way change log) that produces bounded artifacts, a spec-code-drift graph
+view, and a technical/non-technical persona split. Full design + the honest counter-case + build
+order (drift daemon must be proven headless BEFORE any Theia work starts) in
+`SPEC-theia-factory-ide.md` — **nothing under this v2 has been built yet**, this is a design-stage
+lock, not a status update. `guide.py`'s inline CLI remains as the scriptable/headless path
+(`sembl-stack loop`), not retired regardless of which surface wraps it. · **O8 [LOCKED 2026-07-05]
+bounded-LLM-into-fixed-schema is the one deliberate, scoped exception to "no LLM in the loop,"**
+reused at three points — `guide.py`'s existing `ai_suggest_paths`, the discuss panel's task-parse
+block, and the L0.5 Idea→Spec Q&A — and nowhere else. In every case: LLM proposes into a fixed
+structured schema it cannot extend, a human confirms/edits before it's locked in, and it never
+touches the gate (L5/L8). See `SPEC-ideation-and-chat-shell.md` and `SPEC-theia-factory-ide.md`.
 
 **Strategy/stage (S):** S1 B(measure)+C(build) parallel, **amended by S7** · S2 depth>breadth
 (≈2–4 adapters/layer, not a 100-tool catalog) · S3 winnable bar = O3 + through-deploy
@@ -167,25 +175,30 @@ demand-pulled, post-launch.
   spec declared, stays in bounds, passes the merge gate, deploys, passes the deterministic
   post-deploy gate (health + error-rate) with a rollback trigger, on an auditable trail.
 
-## 8. The surface vision — multi-pane dashboard over the artifact contract (elevates C4)
-**Corrected again 2026-07-05 — the "chat shell" target below is itself superseded, same day, see
-§5 O7.** The Textual wizard (`wizard.py`, Phase 0-2, described below in its historical form) was
-tried, then **rejected 2026-07-04** ("rejected as slop" per `guide.py`'s own docstring) and
-replaced by `guide.py` — a `questionary`-based inline CLI in the Claude-Code/Codex style, still
-live as the scriptable/headless path. A chat-shell surface was locked as the next target, then
-dropped hours later after real end-to-end manual testing: a linear scrolling feed (chat-styled or
-terminal-styled) has the same "can't see it all at once" problem regardless of styling. The
-locked target is now a **graphical multi-pane dashboard app** (`sembl-stack gui`) — persistent,
-simultaneously visible panels, not a transcript of any kind. The "target journey" narrative below
+## 8. The surface vision — forked-Theia factory IDE over the artifact contract (elevates C4)
+**Corrected a third time, 2026-07-05 (later the same day) — the "multi-pane dashboard" target below
+is itself superseded, see §5 O7 v2 and `SPEC-theia-factory-ide.md`.** The Textual wizard (`wizard.py`,
+Phase 0-2, described below in its historical form) was tried, then **rejected 2026-07-04** ("rejected
+as slop" per `guide.py`'s own docstring) and replaced by `guide.py` — a `questionary`-based inline
+CLI in the Claude-Code/Codex style, still live as the scriptable/headless path. A chat-shell surface
+was locked next, dropped hours later (linear scrolling feed, chat- or terminal-styled, has the same
+"can't see it all at once" problem regardless of styling), replaced by a pywebview multi-pane
+dashboard app — which was itself never built and was superseded again the same day after a design
+conversation stress-tested "is this just Cursor with extra chrome" and converged on a forked-Theia
+IDE where spec-code drift (not a dashboard, not a chat transcript) is the surviving differentiator.
+The locked target is now: **code-first center, a swappable L0–L8 pipeline strip on top, an
+open-ended discuss panel producing bounded artifacts, and a drift graph view** — full design,
+including the honest counter-case and a build order that proves the drift signal headless before
+any Theia work starts, in `SPEC-theia-factory-ide.md`. The "target journey" narrative below
 (Idea→Spec, L1 scaffold, drift resolution, onboarding index) is still the right sequence of
-*capability* — only the rendering surface changed from a chat transcript to dashboard panels.
+*capability* — only the rendering surface changed again, from dashboard panels to a Theia IDE.
 
 **Historical record (Phase 0-2, superseded, kept for context):** bare `sembl-stack` launched a
 Textual wizard (`tui.py` `RunsDashboard` + `views.py` + `presets.py`) with a stage rail (CI-run-page
 UX) and `session.json`-based resume; Phase 2 wired the rail to actually run the loop. All of this
 is retired — do not build against `wizard.py`.
 
-**Target journey (chat shell, O7):** drop a `product.md`/pitch → **L0.5 Idea→Spec** bounded LLM
+**Target journey (rendered in the Theia IDE's discuss panel + drift graph, O7 v2):** drop a `product.md`/pitch → **L0.5 Idea→Spec** bounded LLM
 Q&A (fixed slot schema: stack candidates, open questions, data model sketch, non-goals — only
 unresolved slots become real questions) → user reviews/edits the Spec → **L1** real scaffold
 derived from that Spec (not the demo placeholder) → ambient fused doc+code graph watches for
@@ -369,8 +382,9 @@ MCP ergonomics · MurphyScan deep audit · PyPI `sembl-stack` 0.1.0 + public sit
 (3–5 partners, the moment a stranger can run the spine) · MurphyScan green on the flagship · then
 **public launch (Track A)**: full through-deploy, beats-prompt-chains, ~50-tool product.
 
-**Track 5 — ideation + chat shell (🆕 locked 2026-07-05, owner-personal-use priority — see
-`SPEC-ideation-and-chat-shell.md`):**
+**Track 5 — ideation + drift mechanics, rendered in the Theia IDE (🆕 locked 2026-07-05,
+owner-personal-use priority — mechanics in `SPEC-ideation-and-chat-shell.md`, surface superseded
+same day by `SPEC-theia-factory-ide.md`; item 5 below is retitled accordingly):**
 1. ~~**L0.5 Idea → Spec**~~ — ✅ **DONE 2026-07-05.** `ideation.py` (pure core: pitch detection,
    fixed slot-schema prompt + tolerant JSON parser with a never-raises fallback, `spec.json`/
    `spec.md` read/write) + `guide.py`'s `_ideation_step` (wired into `launch()` right after the
@@ -396,18 +410,40 @@ MCP ergonomics · MurphyScan deep audit · PyPI `sembl-stack` 0.1.0 + public sit
    `scaffold_demo()` just ran). 3 new tests (`spec_to_task_text`) + a scripted end-to-end smoke run
    proving the placeholder task/bounds are correctly replaced and `existing_answers()` sees the new
    ones, 318 total passing.
-3. **Ambient fused graph + drift daemon** — fuse the doc graph (Spec) and code graph (CBM) into
-   one; ambient watcher writes a cheap immediate flag (draft ADR stub) the moment drift is
-   detected; review batches at natural checkpoints (opening the chat shell, or `review drift`).
-   Reopens `memory-plane-hypothesis.md` Claim B under a revised G0 (owner-dogfood gate, not
+3. ~~**Ambient fused graph + drift daemon**~~ — ✅ **DONE 2026-07-05, live-proven, not yet
+   committed.** `sembl_stack/drift.py` (new, pure, zero changes to `reconciliation.py`/
+   `specgraph.py`/`codegraph_cbm.py` — additive only) wraps the existing, unchanged
+   `reconcile_spec_code` with a persisted state file (`.sembl/drift-state.json` by default)
+   keyed by a stable finding fingerprint, so repeated checks only surface what's genuinely NEW
+   since the last review — the "cheap immediate flag." Two new CLI commands: `drift-check`
+   (same SpecGraph/code-graph sources as `reconcile`, plus `--state`) and `drift-review`
+   (batched checkpoint, `--ack` to mark reviewed). **Correction vs. the plan text below:**
+   `manage_adr` was assumed to be an append-only per-drift log; empirically (probed against a
+   disposable scratch CBM project) it's a single whole-project architecture document
+   (PURPOSE/STACK/ARCHITECTURE/.../PHILOSOPHY, read/replace-wholesale) — overwriting it every
+   drift tick would be neither cheap nor safe. The local state file is the actual flag;
+   `manage_adr` stays reserved for item 4's `mark exception` (a genuine permanent decision),
+   not built here. 9 new tests (`tests/test_drift.py`), 372 total passing, zero regressions.
+   **Live-proven against the real flagship** (`examples/flagship-feedback-board`, real CBM
+   index, 2953 nodes, real 10-node SpecGraph built from its actual `specs/001-feedback-board`
+   requirements/tasks, not a one-line placeholder): first `drift-check --live` found **5 real
+   findings** (an entity naming mismatch — spec says `feedback_items`, code graph tokens don't
+   match plural form — plus 4 RLS/secret-handling data-rule statements with no code-graph
+   representation); a second run against the same unchanged index correctly reported 0 new /
+   5 still-pending (no duplicate flagging); `drift-review --ack` then a third run confirmed
+   acknowledged findings do not resurface. This is the validation step
+   `SPEC-theia-factory-ide.md` §5 required before any Theia work starts — it passed. Reopens
+   `memory-plane-hypothesis.md` Claim B under a revised G0 (owner-dogfood gate, not
    stranger-demand) — G3 (CBM stays swappable behind the `ContextGraph` seam) unchanged.
 4. **Drift resolution** — tri-state per graph node (code ahead / spec ahead / contradictory) +
-   three chat commands: `update spec` (LLM rewrites just that node, reviewed diff, never silent),
+   three commands: `update spec` (LLM rewrites just that node, reviewed diff, never silent),
    `update code` (seeds a new `Task`+`Bounds` from the spec delta, re-enters the same
    task→bounds→execute→gate loop — no new mechanism), `mark exception` (recorded as a CBM ADR).
-5. **Chat shell** — thin custom transcript UI rendering the artifact contract as chat blocks;
-   retires `wizard.py`; reuses `runner.py`'s headless event stream and `guide.py`'s
-   `ai_suggest_paths` precedent for the task-parse block. Fixed deterministic stage sequence, two
+5. **~~Chat shell~~ Theia IDE discuss panel + drift graph** — retitled 2026-07-05, see
+   `SPEC-theia-factory-ide.md` for the full surface (this item is now just the discuss panel +
+   graph view piece of that doc, not a standalone transcript UI); retires `wizard.py`; reuses
+   `runner.py`'s headless event stream and `guide.py`'s `ai_suggest_paths` precedent for the
+   task-parse block. Fixed deterministic stage sequence, two
    scoped LLM touch points only (parse, explain) — see O7/O8.
 6. **First concrete slice** — task → suggested bounds + graph-diff preview (build this slice
    first, before the full chat shell, to prove the pattern).
