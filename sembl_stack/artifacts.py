@@ -87,6 +87,22 @@ class Bounds(_Serializable):
 
 
 @dataclass
+class Spec(_Serializable):
+    """L0.5 output — the reviewed product spec/PRD (Track 5, see
+    docs/SPEC-ideation-and-chat-shell.md). The doc a fused graph would eventually
+    reconcile everything else against. Only authoritative once a human has
+    reviewed/edited every field — see `ideation.py`."""
+    KIND = "spec"
+    pitch: str = ""
+    stack: str = ""
+    stack_why: str = ""
+    data_model: str = ""
+    non_goals: list[str] = field(default_factory=list)
+    questions_resolved: dict = field(default_factory=dict)
+    sources: list[str] = field(default_factory=list)
+
+
+@dataclass
 class Change(_Serializable):
     """What the executor produced, in the sandbox: a diff + its (untrusted) report."""
     KIND = "change"
@@ -194,7 +210,7 @@ def bind_verdict(verdict: Verdict, diff: str) -> Verdict:
 ExecutionResult = Change
 
 KINDS = {c.KIND: c for c in (
-    Task, Context, SpecGraph, Bounds, Change, Verdict, ReconciliationReport,
+    Task, Context, SpecGraph, Spec, Bounds, Change, Verdict, ReconciliationReport,
     ReviewReport, Trace, Delivery, MergeRecord)}
 
 

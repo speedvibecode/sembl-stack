@@ -19,18 +19,22 @@ this module only prompts and prints. A guided run and a headless
 """
 from __future__ import annotations
 
+import itertools
 import json
 import os
 import shutil
 import subprocess
+import sys
+import threading
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
 import click
 import yaml
 
-from . import onboarding, profile, registry, runner, scaffold
-from .artifacts import diff_sha256
+from . import ideation, onboarding, profile, registry, runner, scaffold
+from .artifacts import Spec, diff_sha256
 from .config import DEFAULTS
 from .store import RunStore
 
@@ -530,6 +534,43 @@ def _dim(text: str) -> None:
     click.secho(text, fg="bright_black")
 
 
+_SPINNER_FRAMES = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
+
+
+class _Spinner:
+    """A Codex/Claude-Code-style spinner for the blocking AI calls (`ai_suggest_paths`,
+    `draft_spec_slots`) — those are the only points where the guided run goes quiet
+    for however long the configured executor takes. Falls back to one static dim
+    line when stdout isn't a real terminal (piped output, tests) — no thread, no
+    carriage-return games, since there's no terminal to animate on."""
+
+    def __init__(self, message: str):
+        self.message = message
+        self._stop = threading.Event()
+        self._thread: threading.Thread | None = None
+
+    def __enter__(self) -> "_Spinner":
+        if not sys.stdout.isatty():
+            _dim(f"  {self.message}")
+            return self
+        self._thread = threading.Thread(target=self._spin, daemon=True)
+        self._thread.start()
+        return self
+
+    def _spin(self) -> None:
+        for frame in itertools.cycle(_SPINNER_FRAMES):
+            if self._stop.is_set():
+                break
+            click.secho(f"\r  {frame} {self.message}", fg="bright_black", nl=False)
+            time.sleep(0.08)
+
+    def __exit__(self, *exc_info) -> None:
+        if self._thread is not None:
+            self._stop.set()
+            self._thread.join()
+            click.echo("\r" + " " * (len(self.message) + 4) + "\r", nl=False)
+
+
 def launch(repo: str = ".", *, reconfigure: bool = False) -> None:
     if not _HAVE_QUESTIONARY:
         raise RuntimeError(
@@ -543,11 +584,15 @@ def launch(repo: str = ".", *, reconfigure: bool = False) -> None:
     _dim(f"  repo: {root}")
     click.echo()
 
+    # Snapshot BEFORE _repo_step can run scaffold_demo().
+    fresh_scaffold = _is_fresh_scaffold(root, is_git)
     root, is_git = _repo_step(root, is_git)
     if root is None:
         return
     prof = _agent_step(reconfigure)
     if prof is None:
+        return
+    if not _ideation_step(root, prof, fresh_scaffold=fresh_scaffold):
         return
     if not _layers_step(root, prof, reconfigure=reconfigure):
         return
@@ -560,6 +605,17 @@ def launch(repo: str = ".", *, reconfigure: bool = False) -> None:
         result = _run_step(root)
         if _after_run(root, result) != "again":
             return
+
+
+def _is_fresh_scaffold(root: Path, is_git: bool) -> bool:
+    """Whether `_repo_step`'s upcoming `scaffold_demo()` (if the user confirms it)
+    would be writing a BRAND NEW task.yaml, not silently replacing a real one that
+    merely happens to live in a directory that isn't a git repo yet (e.g. a prior
+    `sembl-stack init`, or a previous guided run in the same non-git directory).
+    `_ideation_step` trusts this flag to decide whether it's safe to overwrite the
+    demo placeholder task with a spec-derived one — codex review finding, see
+    `PROCESS-ACTION-PLAN.md` Track 5 item 2."""
+    return not is_git and not (root / "task.yaml").is_file()
 
 
 def _repo_step(root: Path, is_git: bool) -> tuple[Path | None, bool]:
@@ -625,6 +681,88 @@ def _agent_step(reconfigure: bool):
         return candidate
 
 
+def _ideation_step(root: Path, prof, *, fresh_scaffold: bool) -> bool:
+    """L0.5 — offer to turn a dropped pitch doc into a reviewed Spec, one time per
+    repo. Silent no-op for every other case (already spec'd, or no pitch doc) —
+    this must never interrupt someone who already has a project.
+
+    L1 — when this repo was JUST demo-scaffolded (`fresh_scaffold`), a confirmed
+    spec also replaces `scaffold.py`'s placeholder task.yaml with a real one
+    derived from the spec, and clears the demo's "app/" bounds back to unscoped
+    so `_task_step`'s normal path-suggestion flow picks real paths for this
+    stack instead of prefilling the placeholder's. A pre-existing repo's own
+    task.yaml is never touched — this only replaces the demo placeholder."""
+    if ideation.existing_spec(root) is not None:
+        return True
+    pitch_doc = ideation.detect_pitch_doc(root)
+    if pitch_doc is None:
+        return True
+    use_pitch = questionary.confirm(
+        f"Found {pitch_doc.name} — turn it into a project spec first?",
+        default=True).ask()
+    if use_pitch is None:                  # Ctrl-C / Esc — abort like every other prompt
+        return False
+    if not use_pitch:                      # explicit "no" — this step is optional, carry on
+        return True
+
+    pitch_text = pitch_doc.read_text(encoding="utf-8")
+    with _Spinner("reading the pitch…"):
+        slots = ideation.draft_spec_slots(root, prof.executor, pitch_text, model=prof.model)
+
+    if slots["stack_candidates"]:
+        choices = [Choice(title=f"{c['name']} — {c['why']}" if c["why"] else c["name"],
+                          value=c["name"]) for c in slots["stack_candidates"]]
+        choices.append(Choice(title="something else…", value="__other__"))
+        stack = questionary.select("Stack?", choices=choices).ask()
+        if stack is None:
+            return False
+        if stack == "__other__":
+            stack = questionary.text("Stack:").ask()
+    else:
+        stack = questionary.text("Stack (no AI suggestion — name your own):").ask()
+    if stack is None or not stack.strip():
+        return False
+    stack_why = next(
+        (c["why"] for c in slots["stack_candidates"] if c["name"] == stack), "")
+
+    resolved: dict = {}
+    for q in slots["open_questions"]:
+        a = questionary.text(q).ask()
+        if a is None:
+            return False
+        resolved[q] = a
+
+    data_model = questionary.text(
+        "Data model sketch (edit if needed):",
+        default=slots["data_model_sketch"]).ask()
+    if data_model is None:
+        return False
+    non_goals_text = questionary.text(
+        "Non-goals (comma-separated, edit if needed):",
+        default=", ".join(slots["non_goals_guess"])).ask()
+    if non_goals_text is None:
+        return False
+
+    spec = Spec(pitch=pitch_text, stack=stack.strip(), stack_why=stack_why,
+                data_model=data_model, non_goals=ideation.split_list(non_goals_text),
+                questions_resolved=resolved, sources=[pitch_doc.name])
+    ideation.write_spec(root, spec)
+    _dim("  wrote spec.json + spec.md — this is now the project's spec")
+
+    if fresh_scaffold:
+        (root / "task.yaml").write_text(
+            json.dumps({"text": ideation.spec_to_task_text(spec), "repo": ".",
+                       "spec_path": "spec.md"}),
+            encoding="utf-8")
+        (root / "bounds.json").write_text(json.dumps({
+            "editable_paths": [], "forbidden_areas": [],
+            "churn_budget": {"max_files": 20, "max_lines": 1000},
+        }, indent=2), encoding="utf-8")
+        _dim("  replaced the demo placeholder task with a real scaffold task")
+    click.echo()
+    return True
+
+
 def _task_step(root: Path, prof) -> bool:
     text0, editable0, forbidden0 = existing_answers(root)
 
@@ -639,8 +777,8 @@ def _task_step(root: Path, prof) -> bool:
         if questionary.confirm(
                 "Suggest editable paths with AI (asks your agent to scope this task)?",
                 default=False).ask():
-            _dim("  asking the agent to scope this task…")
-            ai_paths = ai_suggest_paths(root, prof.executor, text, model=prof.model)
+            with _Spinner("asking the agent to scope this task…"):
+                ai_paths = ai_suggest_paths(root, prof.executor, text, model=prof.model)
             if ai_paths:
                 _dim(f"  suggested: {', '.join(ai_paths)}")
             else:
@@ -667,10 +805,10 @@ def _task_step(root: Path, prof) -> bool:
         if questionary.confirm(
                 "Suggest do-not-touch paths with AI (secrets, infra, CI, lockfiles)?",
                 default=False).ask():
-            _dim("  asking the agent what to keep off-limits…")
-            ai_forbidden = ai_suggest_paths(
-                root, prof.executor, text, model=prof.model,
-                kind="forbidden", editable=parse_paths(editable))
+            with _Spinner("asking the agent what to keep off-limits…"):
+                ai_forbidden = ai_suggest_paths(
+                    root, prof.executor, text, model=prof.model,
+                    kind="forbidden", editable=parse_paths(editable))
             if ai_forbidden:
                 _dim(f"  suggested: {', '.join(ai_forbidden)}")
             else:

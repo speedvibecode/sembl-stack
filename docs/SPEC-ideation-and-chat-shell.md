@@ -1,10 +1,10 @@
 # SPEC — Ideation + Chat Shell (the personal-supertool direction)
 
-> Status: **[LOCKED direction, 2026-07-05]** — design confirmed across a planning conversation,
-> not yet built. This doc is the detail; `PROCESS-ACTION-PLAN.md` §3/§5/§8/§9 (Track 5) carries
-> the summary and is the source of truth for status. Priority explicitly set by the owner: **this
-> is for personal use first, not product validation by other users** — build it because it makes
-> sembl-stack usable end-to-end for real work, dogfood it on sembl-stack itself.
+> Status: **[LOCKED direction, 2026-07-05]** — §1 (L0.5) and §2 (L1) built 2026-07-05; §3-8 (Track
+> 5 items 3-8) not yet built. This doc is the detail; `PROCESS-ACTION-PLAN.md` §3/§5/§8/§9 (Track 5)
+> carries the summary and is the source of truth for status. Priority explicitly set by the owner:
+> **this is for personal use first, not product validation by other users** — build it because it
+> makes sembl-stack usable end-to-end for real work, dogfood it on sembl-stack itself.
 
 ## 0. The one-paragraph goal
 
@@ -32,8 +32,12 @@ fantastic output."* "Bounded" is the load-bearing word — see the mechanism bel
 
 **The mechanism (fixed slot schema, not free chat):**
 1. LLM reads the doc and fills a **fixed set of slots** — it cannot invent new ones:
-   - `stack_candidates` — ranked, each with a one-line why, drawn only from the existing
-     `presets.py` preset menu (no inventing a stack outside what sembl-stack can actually scaffold).
+   - `stack_candidates` — up to 3, ranked, each with a one-line why. **Correction (built
+     2026-07-05):** this is free text naming a real product tech stack (e.g. "Next.js +
+     Supabase") — NOT `presets.py`'s preset menu, which is a different thing entirely
+     (sembl-stack's own gate-operating-mode: `just-gate`/`gate+sandbox`/`full-loop`, unaffected by
+     this feature). The bounding property is fixed slots + human-confirms-before-lock, not an enum
+     — see `ideation.py`.
    - `open_questions` — only the slots it's genuinely unsure of (auth model? multi-tenant?
      realtime? persistence?), not a fixed interview script.
    - `data_model_sketch` — best-effort entities/relations.
@@ -42,8 +46,8 @@ fantastic output."* "Bounded" is the load-bearing word — see the mechanism bel
    might skip straight to "here's my read, confirm?"; a sparse one asks more. This directly answers
    the earlier design question ("one big batch vs. drip-fed") — it's neither fixed: **length is a
    function of how much the source doc actually resolves**, not a fixed script.
-3. Stack choice is picked from the deterministic preset menu; the LLM recommends one, the owner
-   can override — nothing is built outside that menu.
+3. Stack choice defaults to the AI's top-ranked candidate but the owner can always type something
+   else — nothing is silently locked to the AI's suggestion.
 4. **Nothing is authoritative until the owner reviews/edits it.** Same non-silence rule as
    `update spec` in §5. Once confirmed, this becomes the **Spec (PRD) artifact** — the node the
    fused graph (§4) reconciles everything else against, and the reason "full spec/PRD first" was
@@ -58,12 +62,26 @@ once, earlier, over a bigger question.
 
 ## 2. L1 — Spec → real scaffold
 
-Today, `scaffold.py`'s `scaffold_demo()` / `ensure_demo_repo()` only ever produce a placeholder
-`app/__init__.py` + starter config files + a first commit — enough to make the loop runnable, not
-a real project. L1 (new) derives the **actual** starter repo structure, dependencies, and stack
-config from the confirmed Spec artifact from §1, instead of the demo placeholder. This is the
-piece that answers the owner's "did sembl ever have an initial plan mode for greenfield ideas like
-banter" question: no — this is that mode, built for real instead of assumed to already exist.
+**Status: DONE 2026-07-05.** Today, `scaffold.py`'s `scaffold_demo()` / `ensure_demo_repo()` only
+ever produce a placeholder `app/__init__.py` + starter config files + a first commit — enough to
+make the loop runnable, not a real project. L1 derives the **actual** starter repo structure,
+dependencies, and stack config from the confirmed Spec artifact from §1, instead of the demo
+placeholder. This is the piece that answers the owner's "did sembl ever have an initial plan mode
+for greenfield ideas like banter" question: no — this is that mode, built for real instead of
+assumed to already exist.
+
+**How it's built — no new mechanism, no fourth LLM touch point:** `ideation.py`'s
+`spec_to_task_text(spec)` is pure string composition (stack + why + pitch + data model + non-goals
++ resolved questions -> one task description), not an LLM call. `guide.py`'s `_ideation_step` now
+takes a `fresh_scaffold` flag (threaded from `launch()`, true only when this run's `_repo_step` just
+called `scaffold_demo()` on a non-git dir). When a spec is confirmed on a fresh scaffold, it
+overwrites the placeholder `task.yaml` with the derived text and resets `bounds.json`'s demo
+`["app/"]` bound back to unscoped (`[]`) — the next `_task_step` call prefills the real task and
+runs its existing path-suggestion flow fresh instead of prefilling the stale demo bound. From there
+the actual scaffolding work is just a normal run of the same task→bounds→execute→gate loop every
+other change goes through: **this is §5's "update code" mechanism, reused one step earlier** (seed
+a Task from a spec delta, re-enter the same loop), not a new one — L1 needed zero new orchestration
+beyond that one wiring point. A pre-existing repo's own `task.yaml` is never touched.
 
 ## 3. Ambient fused graph + drift daemon
 

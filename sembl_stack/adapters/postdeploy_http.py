@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import json
 from urllib.error import URLError
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlsplit
 from urllib.request import Request, urlopen
 
 from ._redact import summarize
@@ -31,6 +31,17 @@ class HttpPostDeployGate:
             )
 
         url = urljoin(delivery.url.rstrip("/") + "/", health_path.lstrip("/"))
+        # A Delivery artifact can arrive via `--delivery <file>` — untrusted input,
+        # not necessarily freshly produced by this run's own deploy step. Restrict
+        # to http(s): `urlopen` also honors `file://`, which would read local files
+        # into the verdict body instead of checking a deployed app (codex review
+        # finding).
+        if urlsplit(url).scheme not in ("http", "https"):
+            return Verdict(
+                status="BLOCK",
+                reasons=[f"delivery URL scheme is not http(s): {delivery.url!r}"],
+                raw={"url": url},
+            )
         try:
             req = Request(url, headers={"User-Agent": "sembl-stack-postdeploy"})
             with urlopen(req, timeout=timeout_s) as resp:

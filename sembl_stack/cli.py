@@ -351,7 +351,9 @@ def _check_merge_binding(verdict, repo, into, source) -> dict:
               help="Deploy existing Vercel build output with `vercel deploy --prebuilt`.")
 @click.option("--config", "config_path", default="sembl.stack.yaml")
 @click.option("--out", default=None, help="Write the Delivery artifact here.")
-def deploy(repo, verdict_path, allow_warn, production, prebuilt, config_path, out):
+@click.option("--allow-dirty", is_flag=True,
+              help="Deploy even when the target working tree has uncommitted changes.")
+def deploy(repo, verdict_path, allow_warn, production, prebuilt, config_path, out, allow_dirty):
     """L7: Verdict(PASS) -> Delivery. Deploy via the configured adapter."""
     verdict = _read_verdict(verdict_path)
     if verdict.status == "BLOCK":
@@ -360,6 +362,16 @@ def deploy(repo, verdict_path, allow_warn, production, prebuilt, config_path, ou
         raise click.UsageError("refusing to deploy WARN without --allow-warn")
     if verdict.status != "PASS" and verdict.status != "WARN":
         raise click.UsageError(f"unsupported verdict status: {verdict.status}")
+
+    # Dirty-tree guard, same convention as `apply`: a verdict only judged what was
+    # committed, so deploying over further uncommitted edits would ship unjudged
+    # content under cover of an old PASS/WARN (codex review finding). This repo may
+    # not be the tool's own root (it can be any Vercel-linked project dir), so the
+    # tool-owned-root-files allowance in `_tree_is_dirty` still applies correctly.
+    if not allow_dirty and _tree_is_dirty(Path(repo).resolve()):
+        raise click.UsageError(
+            "the repo has uncommitted changes — commit them first (so the deploy "
+            "matches exactly what the verdict judged), or pass --allow-dirty")
 
     cfg = load(_resolve_config(config_path, repo))
     delivery = cfg.deploy.deploy(repo, production=production, prebuilt=prebuilt)

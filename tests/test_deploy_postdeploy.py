@@ -1,3 +1,4 @@
+import subprocess
 from types import SimpleNamespace
 
 from click.testing import CliRunner
@@ -196,6 +197,23 @@ def test_http_postdeploy_gate_blocks_missing_delivery_url():
     assert "no URL" in verdict.reasons[0]
 
 
+def test_http_postdeploy_gate_blocks_non_http_scheme(monkeypatch):
+    # A Delivery artifact can arrive via `--delivery <file>` — untrusted input.
+    # `urlopen` also honors file://, which would read local files instead of
+    # checking a deployed app (codex review finding); must BLOCK, never fetch.
+    called = []
+    monkeypatch.setattr(
+        "sembl_stack.adapters.postdeploy_http.urlopen",
+        lambda *a, **k: called.append(True))
+
+    verdict = HttpPostDeployGate().verify(
+        Delivery(target="vercel", url="file:///etc/passwd", status="deployed"))
+
+    assert verdict.status == "BLOCK"
+    assert "not http(s)" in verdict.reasons[0]
+    assert not called
+
+
 def test_http_postdeploy_redacts_response_body(monkeypatch):
     """A 500 health body must never be serialized raw into the artifact."""
     secret = "TOKEN_sk_live_LEAKED_abc123"
@@ -259,6 +277,27 @@ def test_deploy_cli_refuses_block_verdict(tmp_path):
 
     assert result.exit_code != 0
     assert "refusing to deploy a BLOCK" in result.output
+
+
+def test_deploy_cli_refuses_dirty_tree(tmp_path):
+    # A verdict only judged what was committed — deploying over further
+    # uncommitted edits would ship unjudged content under an old PASS/WARN
+    # (codex review finding). The dirty-tree guard must fire before the deploy
+    # adapter is even loaded, so no config file is needed for this to raise.
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path)
+    subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t.com",
+                    "commit", "--allow-empty", "-q", "-m", "init"], cwd=tmp_path)
+    (tmp_path / "dirty.txt").write_text("uncommitted\n", encoding="utf-8")
+
+    verdict_path = tmp_path / "verdict.json"
+    verdict_path.write_text(Verdict(status="PASS").to_json(), encoding="utf-8")
+
+    result = CliRunner().invoke(main, [
+        "deploy", "--verdict", str(verdict_path), "--repo", str(tmp_path),
+    ])
+
+    assert result.exit_code != 0
+    assert "uncommitted changes" in result.output
 
 
 def test_vercel_rollback_resolves_and_promotes_previous(monkeypatch, tmp_path):

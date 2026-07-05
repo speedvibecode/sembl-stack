@@ -13,6 +13,40 @@ from sembl_stack.artifacts import Change, Verdict
 from sembl_stack.store import RunStore
 
 
+class TestIsFreshScaffold:
+    def test_true_for_a_brand_new_non_git_dir(self, tmp_path):
+        assert guide._is_fresh_scaffold(tmp_path, is_git=False) is True
+
+    def test_false_for_a_git_repo(self, tmp_path):
+        (tmp_path / "task.yaml").write_text("x", encoding="utf-8")
+        assert guide._is_fresh_scaffold(tmp_path, is_git=True) is False
+
+    def test_false_when_a_real_task_yaml_already_exists_even_without_git(self, tmp_path):
+        # a non-git dir that already has its own task.yaml (prior `init`, or a
+        # previous guided run) must never look "fresh" — codex review finding.
+        (tmp_path / "task.yaml").write_text("text: real work\n", encoding="utf-8")
+        assert guide._is_fresh_scaffold(tmp_path, is_git=False) is False
+
+
+class TestSpinner:
+    def test_non_tty_falls_back_to_one_dim_line(self, monkeypatch, capsys):
+        monkeypatch.setattr(guide.sys.stdout, "isatty", lambda: False)
+        with guide._Spinner("working…"):
+            pass
+        assert "working…" in capsys.readouterr().out
+        # no background thread was started in the non-tty fallback
+        with guide._Spinner("working…") as spin:
+            pass
+        assert spin._thread is None
+
+    def test_tty_spins_in_a_background_thread_and_cleans_up(self, monkeypatch):
+        monkeypatch.setattr(guide.sys.stdout, "isatty", lambda: True)
+        with guide._Spinner("working…") as spin:
+            assert spin._thread is not None
+            assert spin._thread.is_alive()
+        assert not spin._thread.is_alive()
+
+
 class TestDetectProviders:
     def test_mock_is_always_available(self, monkeypatch):
         monkeypatch.setattr(guide.shutil, "which", lambda name: None)
@@ -405,6 +439,52 @@ class _Answer:
 
     def ask(self):
         return self._value
+
+
+class TestIdeationStep:
+    def test_no_pitch_doc_is_a_silent_no_op(self, tmp_path):
+        prof = SimpleNamespace(executor="mock", model=None)
+        assert guide._ideation_step(tmp_path, prof, fresh_scaffold=True) is True
+        assert not (tmp_path / "spec.json").is_file()
+
+    def test_existing_spec_is_a_silent_no_op(self, tmp_path):
+        (tmp_path / "product.md").write_text("a pitch", encoding="utf-8")
+        from sembl_stack.artifacts import Spec
+        from sembl_stack import ideation
+        ideation.write_spec(tmp_path, Spec(pitch="a pitch"))
+        prof = SimpleNamespace(executor="mock", model=None)
+        assert guide._ideation_step(tmp_path, prof, fresh_scaffold=True) is True
+
+    def test_ctrl_c_at_the_offer_prompt_aborts(self, tmp_path, monkeypatch):
+        (tmp_path / "product.md").write_text("a pitch", encoding="utf-8")
+        monkeypatch.setattr(guide, "questionary",
+                            SimpleNamespace(confirm=lambda *a, **k: _Answer(None)))
+        prof = SimpleNamespace(executor="mock", model=None)
+        assert guide._ideation_step(tmp_path, prof, fresh_scaffold=True) is False
+        assert not (tmp_path / "spec.json").is_file()
+
+    def test_declining_the_offer_continues_without_writing_a_spec(self, tmp_path, monkeypatch):
+        (tmp_path / "product.md").write_text("a pitch", encoding="utf-8")
+        monkeypatch.setattr(guide, "questionary",
+                            SimpleNamespace(confirm=lambda *a, **k: _Answer(False)))
+        prof = SimpleNamespace(executor="mock", model=None)
+        assert guide._ideation_step(tmp_path, prof, fresh_scaffold=True) is True
+        assert not (tmp_path / "spec.json").is_file()
+
+    def test_fresh_scaffold_task_points_spec_path_at_spec_md(self, tmp_path, monkeypatch):
+        # so SpecGraph/L2 bounds derivation actually reads the confirmed Spec
+        # instead of ignoring it (codex review finding). executor="mock" has no
+        # AI draft, so this exercises the manual-entry fallback path: stack name,
+        # the fallback open question, data model, non-goals — all via text().
+        (tmp_path / "product.md").write_text("a pitch", encoding="utf-8")
+        answers = {"confirm": [True], "text": ["Django", "yes", "", ""]}
+        monkeypatch.setattr(guide, "questionary", SimpleNamespace(
+            confirm=lambda *a, **k: _Answer(answers["confirm"].pop(0)),
+            text=lambda *a, **k: _Answer(answers["text"].pop(0))))
+        prof = SimpleNamespace(executor="mock", model=None)
+        assert guide._ideation_step(tmp_path, prof, fresh_scaffold=True) is True
+        task = json.loads((tmp_path / "task.yaml").read_text(encoding="utf-8"))
+        assert task["spec_path"] == "spec.md"
 
 
 class TestLayersStep:

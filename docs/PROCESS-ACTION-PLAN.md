@@ -76,13 +76,13 @@ repo) → TARGET (product, plane B)`, everything speaking **MCP** at the hub.
 | Layer | Job | In → Out | Own? | **Status (2026-06-21)** |
 |---|---|---|---|---|
 | L0 Protocol/Hub | one wire | — | OWN contract | ✅ |
-| **L0.5 Idea → Spec** (new) | greenfield ideation | `Pitch/product.md → Spec(PRD)` | OWN (bounded LLM, fixed slot schema + human confirm) | 🆕 planned, see `SPEC-ideation-and-chat-shell.md` |
+| **L0.5 Idea → Spec** (new) | greenfield ideation | `Pitch/product.md → Spec(PRD)` | OWN (bounded LLM, fixed slot schema + human confirm) | ✅ **DONE 2026-07-05** (`ideation.py` + `guide.py`'s `_ideation_step`; product.md/PRD.md/idea.md detection, `spec.json`+`spec.md` artifacts; 22 new tests) — see `SPEC-ideation-and-chat-shell.md` |
 | L1 Repo intel / code-graph | understand | `Task → Context` | consume | ✅ symgraph + CBM (per-PR index); ambient fused doc+code graph + drift daemon 🆕 planned |
 | L2 Spec → bounds | scope | `Task → Bounds` | OWN schema | ✅ `sembl` |
 | — SpecGraph builder | graph the spec | `Task → SpecGraph` | OWN | ✅ in loop plan node |
 | L3 Execute | write | `Task+Bounds → Change` | consume | ✅ ×3 (claude / aider / opencode·MiniMax) |
 | L4 Sandbox | contain | `Change → Change` | consume | ✅ disposable clone (alias worktree) |
-| L5 Verify (gate) | gate the diff | `Change+Bounds → Verdict` | **OWN gate** | ✅ green, sembl 0.1.20 |
+| L5 Verify (gate) | gate the diff | `Change+Bounds → Verdict` | **OWN gate** | ✅ green, sembl 0.2.0 (`pyproject.toml` now requires >=0.1.21, the documented hardening baseline — was stuck at >=0.1.20, a codex review finding) |
 | L5.5 Reconcile (per-PR) | spec↔code drift | `SpecGraph+CodeGraph → Report` | INTEGRATE (advisory) | ✅ **live-proven 2026-07-04**: `reconcile --live` against the real flagship on a real CBM index (2,953 code nodes) → ALIGNED report, exit 0. Evolving 🆕 toward ambient + interactive (tri-state per node + `update spec`/`update code`/`mark exception` commands) — see `SPEC-ideation-and-chat-shell.md` §5; stays advisory, still not the gate |
 | L5.5 Quality review | code-quality signal | diff → findings | BUILD (llm) + INTEGRATE (coderabbit, best-effort) | ✅ **REAL quality axis live 2026-07-02 via `review: llm`** (BYO agent-CLI reviewer, default `claude -p` on the operator's own login; real 2×2 green: gate_only=4/quality_only=3/both=2, 0 UNKNOWN) — CodeRabbit auth UNBLOCKED 2026-07-03 (their backend fix after our report; adapter live-proven, see Track 3 item 11), optional 2nd reviewer; `review: mock` stays the no-AI preview default |
 | L6 Orchestrate+observe | loop/trace | wiring + `*→Trace` | consume | ✅ LangGraph + retry-on-BLOCK |
@@ -358,11 +358,31 @@ MCP ergonomics · MurphyScan deep audit · PyPI `sembl-stack` 0.1.0 + public sit
 
 **Track 5 — ideation + chat shell (🆕 locked 2026-07-05, owner-personal-use priority — see
 `SPEC-ideation-and-chat-shell.md`):**
-1. **L0.5 Idea → Spec** — detect `product.md`/`PRD.md`/`idea.md`; bounded LLM Q&A into a fixed
-   slot schema (stack candidates from the existing `presets.py` menu, open questions, data model
-   sketch, non-goals); user reviews/edits before it's locked as the authoritative Spec.
-2. **L1 real scaffold** — derive the starter repo + stack config from the confirmed Spec, replacing
-   `scaffold.py`'s current demo-only path (placeholder `app/__init__.py`).
+1. ~~**L0.5 Idea → Spec**~~ — ✅ **DONE 2026-07-05.** `ideation.py` (pure core: pitch detection,
+   fixed slot-schema prompt + tolerant JSON parser with a never-raises fallback, `spec.json`/
+   `spec.md` read/write) + `guide.py`'s `_ideation_step` (wired into `launch()` right after the
+   agent step): finds `product.md`/`PRD.md`/`idea.md`, offers to draft a Spec via the configured
+   executor (free-text stack candidates + why, open questions, data model sketch, non-goals —
+   **not** `presets.py`'s gate-mode menu, corrected in `SPEC-ideation-and-chat-shell.md` §1), then
+   walks the user through confirming/editing every slot before writing `spec.json` (machine) +
+   `spec.md` (human). Silent no-op for repos with no pitch doc or an existing spec — never
+   interrupts an existing project. 22 new tests (`tests/test_ideation.py`) + a scripted end-to-end
+   smoke run, 315 total passing. *Remaining, deferred:* the "no file, paste a paragraph" fallback
+   path (SPEC §1 mentions it; skipped this pass — scaffold_demo pre-writes `task.yaml` before this
+   step runs, so the "greenfield" trigger needs its own design, not a quick add).
+2. ~~**L1 real scaffold**~~ — ✅ **DONE 2026-07-05.** No new mechanism, no new LLM touch point:
+   `ideation.py`'s `spec_to_task_text` (pure string composition) turns a confirmed Spec into a real
+   task description; `guide.py`'s `_ideation_step` (now taking a `fresh_scaffold` flag threaded
+   from `launch()`) overwrites `scaffold.py`'s placeholder `task.yaml` with it and resets
+   `bounds.json`'s demo `["app/"]` bound back to unscoped — the very next `_task_step` prefills the
+   real task and lets its existing path-suggestion flow (AI-suggest or `suggest_editable`) pick
+   real paths, instead of the demo's stale `app/` bound. The actual scaffolding work still runs
+   through the same task→bounds→execute→gate loop every other change goes through — this is the
+   `SPEC-ideation-and-chat-shell.md` §5 "update code" pattern, reused a step earlier, not a new one.
+   A pre-existing repo's own `task.yaml` is never touched (`fresh_scaffold` is only true right after
+   `scaffold_demo()` just ran). 3 new tests (`spec_to_task_text`) + a scripted end-to-end smoke run
+   proving the placeholder task/bounds are correctly replaced and `existing_answers()` sees the new
+   ones, 318 total passing.
 3. **Ambient fused graph + drift daemon** — fuse the doc graph (Spec) and code graph (CBM) into
    one; ambient watcher writes a cheap immediate flag (draft ADR stub) the moment drift is
    detected; review batches at natural checkpoints (opening the chat shell, or `review drift`).
