@@ -28,9 +28,11 @@ gate = ["sembl>=0.1.21"]
 mcp = ["mcp>=1.0"]
 orchestrate = ["langgraph>=0.2"]
 trace = ["langfuse>=2.0"]
-tui = ["textual>=0.50"]              # onboarding + wizard + the O6 run dashboard
+tui = ["textual>=0.50"]              # the old onboarding/wizard TUI — retired, kept installable
+gui = ["fastapi>=0.110", "uvicorn>=0.29", "pywebview>=5.0"]   # O7: the dashboard, `sembl-stack gui`
 # Everything, for the full reference factory.
-all = ["sembl>=0.1.21", "mcp>=1.0", "langgraph>=0.2", "langfuse>=2.0", "textual>=0.50"]
+all = ["sembl>=0.1.21", "mcp>=1.0", "langgraph>=0.2", "langfuse>=2.0", "textual>=0.50",
+       "fastapi>=0.110", "uvicorn>=0.29", "pywebview>=5.0"]
 
 [project.scripts]
 sembl-stack = "sembl_stack.cli:main"

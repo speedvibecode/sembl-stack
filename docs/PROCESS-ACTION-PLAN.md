@@ -116,14 +116,21 @@ mechanism) · O3 success = process correctness, quality only as gate-caught regr
 code" never the criterion · O4 keep `sembl-stack` working name · O5 secret/permission/sandbox
 model is the hard prerequisite for real deploy/hosted use · O6 first visual surface = in-terminal
 TUI **(superseded 2026-07-04 by the questionary-based `guide.py` inline CLI, itself the interim
-step toward O7 — the Textual wizard `wizard.py` was tried and rejected, see below)** · **O7
-[LOCKED 2026-07-05] the target surface is a thin custom chat shell** (not a reskinned wizard, not
-"drive an existing agent CLI") — the artifact contract (Task, Bounds, Change, Verdict,
-ReconciliationReport, MergeRecord, Delivery) renders 1:1 as chat blocks in a scrolling transcript;
-resume-anywhere falls out of replaying the run-store manifest. The stage sequence stays fixed,
-deterministic code — **never model-chosen** — with exactly two scoped LLM touch points: parse
-free text into a structured artifact, and narrate/explain a finished deterministic result on
-request (an `explain` command). · **O8 [LOCKED 2026-07-05] bounded-LLM-into-fixed-schema is the
+step toward O7 — the Textual wizard `wizard.py` was tried and rejected, see below)** · ~~O7
+[LOCKED 2026-07-05] the target surface is a thin custom chat shell~~ **SUPERSEDED same day, after
+real end-to-end manual testing of `guide.py` surfaced a severe silent bug (a freshly scaffolded
+repo ran the mock executor forever regardless of the chosen agent — see `sembl_stack/loop.py`/
+`guide.py` fix, commit `476d39f`) and the owner concluded the inline-CLI/chat-transcript shape
+itself was the problem: "you can't see it all at once." A chat shell is still fundamentally a
+scrolling linear feed — same failure mode as the TUI it was meant to replace.** **O7
+[RELOCKED 2026-07-05] the target surface is a graphical multi-pane dashboard app** — NOT a
+scrolling transcript of any kind (chat-styled or terminal-styled): persistent, simultaneously
+visible panels (repo/agent/layers status, run history, task form, live stage timeline, diff
+viewer, verdict) so no state requires scrolling back to see. Backend is a local FastAPI+WebSocket
+server reusing `runner.py`/`loop.py`/adapters/`guide.py`'s pure helpers unchanged (zero business
+logic rewrite — only the surface changes); shell is a native window via `pywebview` (`sembl-stack
+gui`), not a browser tab or Electron. `guide.py`'s inline CLI remains as the scriptable/headless
+path (`sembl-stack loop`), not retired. · **O8 [LOCKED 2026-07-05] bounded-LLM-into-fixed-schema is the
 one deliberate, scoped exception to "no LLM in the loop,"** reused at three points — `guide.py`'s
 existing `ai_suggest_paths`, the chat shell's task-parse block, and the new L0.5 Idea→Spec
 Q&A — and nowhere else. In every case: LLM proposes into a fixed structured schema it cannot
@@ -160,12 +167,18 @@ demand-pulled, post-launch.
   spec declared, stays in bounds, passes the merge gate, deploys, passes the deterministic
   post-deploy gate (health + error-rate) with a rollback trigger, on an auditable trail.
 
-## 8. The surface vision — chat shell over the artifact contract (elevates C4)
-**Corrected 2026-07-05 — this section was stale.** The Textual wizard (`wizard.py`, Phase 0-2,
-described below in its historical form) was tried, then **rejected 2026-07-04** ("rejected as
-slop" per `guide.py`'s own docstring) and replaced by `guide.py` — a `questionary`-based inline
-CLI in the Claude-Code/Codex style, currently live. That in turn is the interim step toward the
-locked target (**O7**): a **thin, purpose-built chat shell**, not a reskin of either prior surface.
+## 8. The surface vision — multi-pane dashboard over the artifact contract (elevates C4)
+**Corrected again 2026-07-05 — the "chat shell" target below is itself superseded, same day, see
+§5 O7.** The Textual wizard (`wizard.py`, Phase 0-2, described below in its historical form) was
+tried, then **rejected 2026-07-04** ("rejected as slop" per `guide.py`'s own docstring) and
+replaced by `guide.py` — a `questionary`-based inline CLI in the Claude-Code/Codex style, still
+live as the scriptable/headless path. A chat-shell surface was locked as the next target, then
+dropped hours later after real end-to-end manual testing: a linear scrolling feed (chat-styled or
+terminal-styled) has the same "can't see it all at once" problem regardless of styling. The
+locked target is now a **graphical multi-pane dashboard app** (`sembl-stack gui`) — persistent,
+simultaneously visible panels, not a transcript of any kind. The "target journey" narrative below
+(Idea→Spec, L1 scaffold, drift resolution, onboarding index) is still the right sequence of
+*capability* — only the rendering surface changed from a chat transcript to dashboard panels.
 
 **Historical record (Phase 0-2, superseded, kept for context):** bare `sembl-stack` launched a
 Textual wizard (`tui.py` `RunsDashboard` + `views.py` + `presets.py`) with a stage rail (CI-run-page

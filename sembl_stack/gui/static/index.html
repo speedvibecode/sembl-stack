@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>sembl-stack</title>
+<link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+<div id="app">
+  <div class="topbar">
+    <span class="repo-path" id="repo-path">-</span>
+    <span class="spacer"></span>
+    <span class="agent-status" id="agent-status"><span class="dot"></span> loading…</span>
+  </div>
+
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="sidebar-section">
+        <h2>Agent</h2>
+        <div id="agent-list"></div>
+      </div>
+      <div class="sidebar-section">
+        <h2>Layers</h2>
+        <div id="layers-list"></div>
+      </div>
+      <div class="sidebar-section">
+        <h2>Runs</h2>
+        <ul class="run-list" id="run-list"></ul>
+      </div>
+    </aside>
+
+    <main class="main">
+      <section class="pane" id="task-pane">
+        <h1>Task</h1>
+        <label for="task-text">What should the agent do?</label>
+        <textarea id="task-text" rows="4"></textarea>
+
+        <label for="editable-paths">Paths the agent may touch</label>
+        <div class="field-row">
+          <input type="text" id="editable-paths" placeholder="app/, src/lib" />
+          <button class="small" id="suggest-editable">Suggest</button>
+        </div>
+
+        <label for="forbidden-paths">Paths it must NOT touch (optional)</label>
+        <div class="field-row">
+          <input type="text" id="forbidden-paths" placeholder="infra/, .env" />
+          <button class="small" id="suggest-forbidden">Suggest</button>
+        </div>
+        <div class="hint" id="task-hint"></div>
+
+        <div class="actions">
+          <button class="primary" id="run-button">Run</button>
+        </div>
+
+        <div class="timeline" id="timeline"></div>
+      </section>
+
+      <section class="pane" id="result-pane">
+        <h1>Result</h1>
+        <div id="result-body">
+          <div class="placeholder">Run a task, or pick a past run from the sidebar.</div>
+        </div>
+        <div class="actions" id="ship-actions" style="display:none">
+          <button class="primary" id="ship-apply">Apply to repo</button>
+          <label style="display:inline-flex;align-items:center;gap:6px;margin:0;font-size:12px;color:var(--text-dim)">
+            <input type="checkbox" id="ship-commit" /> also commit
+          </label>
+        </div>
+      </section>
+    </main>
+  </div>
+</div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

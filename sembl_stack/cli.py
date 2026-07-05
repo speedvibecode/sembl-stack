@@ -130,6 +130,22 @@ def main(ctx, reconfigure):
     guide.launch(".", reconfigure=reconfigure)
 
 
+@main.command()
+@click.option("--repo", default=".")
+@click.option("--port", type=int, default=8765, show_default=True)
+@click.option("--browser", is_flag=True,
+              help="Open in your default browser instead of a native window.")
+def gui(repo, port, browser):
+    """O7: the graphical dashboard — a native window (or --browser) over the same
+    deterministic cores `loop`/the guided run already use. Needs the 'gui' extra."""
+    from .gui.launcher import available, launch_gui
+    if not available():
+        raise click.UsageError(
+            "the GUI needs extra deps: `pip install \"sembl-stack[gui]\"`\n"
+            "  (or run the scriptable path instead, e.g. `sembl-stack loop task.yaml`)")
+    launch_gui(repo, port=port, browser=browser)
+
+
 @click.argument("task_file", type=click.Path(exists=True, dir_okay=False))
 @click.option("--config", "config_path", default="sembl.stack.yaml")
 def _loop_cmd(task_file: str, config_path: str):
