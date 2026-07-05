@@ -33,7 +33,7 @@ from pathlib import Path
 import click
 import yaml
 
-from . import ideation, onboarding, profile, registry, runner, scaffold
+from . import ideation, onboarding, presets, profile, registry, runner, scaffold
 from .artifacts import Spec, diff_sha256
 from .config import DEFAULTS
 from .store import RunStore
@@ -237,6 +237,13 @@ def _layers_step(root: Path, prof, *, reconfigure: bool) -> bool:
     if (root / "sembl.stack.yaml").is_file() and not reconfigure:
         _dim("  layers: configured (`sembl-stack --reconfigure` to change; "
              "`sembl-stack layers` lists every adapter)")
+        cur_execute = layers_cfg.get("execute")
+        if cur_execute and cur_execute != prof.executor:
+            click.secho(
+                f"  ⚠ sembl.stack.yaml pins execute: {cur_execute}, but your "
+                f"configured agent is {prof.executor} — every run here uses "
+                f"{cur_execute}, not {prof.executor}, until you edit layers.execute "
+                "in that file.", fg="yellow")
         return True
 
     click.echo()
@@ -586,11 +593,14 @@ def launch(repo: str = ".", *, reconfigure: bool = False) -> None:
 
     # Snapshot BEFORE _repo_step can run scaffold_demo().
     fresh_scaffold = _is_fresh_scaffold(root, is_git)
-    root, is_git = _repo_step(root, is_git)
-    if root is None:
-        return
+    # Agent BEFORE repo/scaffold: a freshly scaffolded sembl.stack.yaml bakes in
+    # whatever `prof.executor` turns out to be (see `_repo_step`) instead of always
+    # defaulting to the mock demo executor regardless of the agent just chosen.
     prof = _agent_step(reconfigure)
     if prof is None:
+        return
+    root, is_git = _repo_step(root, is_git, prof)
+    if root is None:
         return
     if not _ideation_step(root, prof, fresh_scaffold=fresh_scaffold):
         return
@@ -618,7 +628,7 @@ def _is_fresh_scaffold(root: Path, is_git: bool) -> bool:
     return not is_git and not (root / "task.yaml").is_file()
 
 
-def _repo_step(root: Path, is_git: bool) -> tuple[Path | None, bool]:
+def _repo_step(root: Path, is_git: bool, prof) -> tuple[Path | None, bool]:
     if is_git:
         return root, True
     ok = questionary.confirm(
@@ -628,7 +638,11 @@ def _repo_step(root: Path, is_git: bool) -> tuple[Path | None, bool]:
         _dim("  the loop clones your repo into a sandbox, so it needs git —")
         _dim("  run inside a git repo (or `git init` + commit) and relaunch.")
         return None, False
-    for msg in scaffold.scaffold_demo(root):
+    # Bake the operator's ACTUAL agent choice into the freshly written config —
+    # never the generic mock-executor preset regardless of what was just picked.
+    config_text = (presets.render_full_loop(prof.executor, prof.model)
+                  if prof.executor != "mock" else None)
+    for msg in scaffold.scaffold_demo(root, config_text=config_text):
         _dim(f"    {msg}")
     click.echo()
     return repo_state(str(root))

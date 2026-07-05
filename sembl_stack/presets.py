@@ -88,6 +88,23 @@ PRESETS: dict[str, str] = {
 
 DEFAULT_PRESET = "gate+sandbox"
 
+
+def render_full_loop(executor: str, model: str | None = None) -> str:
+    """`full-loop`, but with the REAL executor/model the operator just chose baked in
+    — not the static `execute: claude` default. Used when the guided TUI is about to
+    scaffold a brand-new `sembl.stack.yaml`: writing the generic preset there and
+    leaving the operator's onboarded profile only in `~/.sembl/profile.json` meant
+    `resolve_config` (repo file always wins) silently ran `execute: claude`/whatever
+    the preset said regardless of the agent the operator actually picked — the mock
+    demo executor in particular, which never even reads the task text, ran forever
+    behind an "agent: claude-login (saved)" status line that was never true."""
+    text = _FULL_LOOP.replace("execute: claude", f"execute: {executor}")
+    if model:
+        text = text.replace(
+            "model:             # blank = the operator's default model",
+            f"model: {model}")
+    return text
+
 _STARTER_TASK = """\
 # A task for the short loop. Paths resolve relative to this file.
 text: "Add a VALUE constant to the app module, in scope, without touching infra."

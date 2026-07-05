@@ -67,6 +67,9 @@ class ClaudeCodeExecutor:
             "stderr": scrub_secrets(err)[-1000:],
         }
         report.update(_usage_from_result_json(out))    # cost/usage — only when reported
+        err = _error_from_result_json(out)
+        if err:                                # e.g. "Failed to authenticate. API Error: 401..."
+            report["error"] = err               # a clean reason, not a generic empty-diff BLOCK
         if timed_out:                          # surfaced to the gate as a BLOCK, not a crash
             report["error"] = "timeout"
             report["timed_out"] = True
@@ -112,3 +115,22 @@ def _usage_from_result_json(out: str) -> dict:
                 usage["total_tokens"] = sum(parts)   # derived from reported parts only
         extra["usage"] = usage
     return extra
+
+
+def _error_from_result_json(out: str) -> str | None:
+    """A clean failure reason from the same envelope, or None.
+
+    `is_error: true` carries the actual reason in `result` (auth failure, refusal,
+    context-limit, etc.) — surfacing it means the gate's BLOCK reason says e.g. "Failed
+    to authenticate. API Error: 401..." instead of the generic "executor produced no
+    changes," which hid a real, actionable failure behind a message that reads like the
+    agent just chose not to do anything.
+    """
+    try:
+        data = json.loads(out)
+    except (ValueError, TypeError):
+        return None
+    if not isinstance(data, dict) or not data.get("is_error"):
+        return None
+    result = data.get("result")
+    return str(result) if result else "the agent CLI reported an error with no message"

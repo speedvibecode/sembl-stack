@@ -8,8 +8,11 @@ import subprocess
 from pathlib import Path
 from types import SimpleNamespace
 
-from sembl_stack import guide, scaffold
+import yaml
+
+from sembl_stack import guide, presets, scaffold
 from sembl_stack.artifacts import Change, Verdict
+from sembl_stack.profile import Profile
 from sembl_stack.store import RunStore
 
 
@@ -689,3 +692,84 @@ class TestScaffoldDemo:
         subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
         scaffold.scaffold_demo(tmp_path)
         assert not (tmp_path / "app").exists()
+
+    def test_config_text_override_wins_over_preset(self, tmp_path):
+        """`config_text` (the guided TUI's profile-aware config) must be written
+        verbatim, not the generic preset — this is the load-bearing seam for the
+        fresh-scaffold fix below."""
+        scaffold.scaffold_demo(tmp_path, config_text="layers:\n  execute: claude\n")
+        cfg = yaml.safe_load((tmp_path / "sembl.stack.yaml").read_text(encoding="utf-8"))
+        assert cfg["layers"]["execute"] == "claude"
+
+
+class TestRenderFullLoop:
+    def test_bakes_in_the_chosen_executor(self):
+        text = presets.render_full_loop("opencode")
+        cfg = yaml.safe_load(text)
+        assert cfg["layers"]["execute"] == "opencode"
+
+    def test_bakes_in_the_chosen_model(self):
+        text = presets.render_full_loop("claude", "claude-opus-4-8")
+        cfg = yaml.safe_load(text)
+        assert cfg["options"]["execute"]["model"] == "claude-opus-4-8"
+
+    def test_no_model_leaves_the_blank_default(self):
+        text = presets.render_full_loop("claude")
+        cfg = yaml.safe_load(text)
+        assert cfg["options"]["execute"]["model"] is None
+
+
+class TestFreshScaffoldPicksRealExecutor:
+    """Regression coverage for the bug where a freshly scaffolded repo always got
+    `execute: mock` baked into sembl.stack.yaml no matter which agent the operator
+    picked in the very same run — `resolve_config` prefers the repo file over the
+    onboarded profile, so the mock demo executor silently ran forever behind an
+    "agent: claude-login (saved)" status line that was never true."""
+
+    class _Confirm:
+        def ask(self):
+            return True
+
+    def test_real_executor_is_baked_into_the_scaffolded_config(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(guide, "questionary",
+                            SimpleNamespace(confirm=lambda *a, **k: self._Confirm()))
+        prof = Profile(runner="claude-login", executor="claude", model="claude-opus-4-8")
+
+        root, is_git = guide._repo_step(tmp_path, False, prof)
+
+        assert is_git is True
+        cfg = yaml.safe_load((root / "sembl.stack.yaml").read_text(encoding="utf-8"))
+        assert cfg["layers"]["execute"] == "claude"
+        assert cfg["options"]["execute"]["model"] == "claude-opus-4-8"
+
+    def test_mock_profile_still_gets_the_mock_demo_preset(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(guide, "questionary",
+                            SimpleNamespace(confirm=lambda *a, **k: self._Confirm()))
+        prof = Profile()   # default: runner=mock, executor=mock
+
+        root, _ = guide._repo_step(tmp_path, False, prof)
+
+        cfg = yaml.safe_load((root / "sembl.stack.yaml").read_text(encoding="utf-8"))
+        assert cfg["layers"]["execute"] == "mock"
+
+
+class TestLayersStepWarnsOnExecutorMismatch:
+    def test_warns_when_configured_agent_differs_from_the_repo_file(self, tmp_path, capsys):
+        (tmp_path / "sembl.stack.yaml").write_text(
+            "layers:\n  execute: mock\n", encoding="utf-8")
+        prof = Profile(runner="claude-login", executor="claude")
+
+        assert guide._layers_step(tmp_path, prof, reconfigure=False) is True
+
+        out = capsys.readouterr().out
+        assert "execute: mock" in out
+        assert "claude" in out
+
+    def test_no_warning_when_they_match(self, tmp_path, capsys):
+        (tmp_path / "sembl.stack.yaml").write_text(
+            "layers:\n  execute: claude\n", encoding="utf-8")
+        prof = Profile(runner="claude-login", executor="claude")
+
+        assert guide._layers_step(tmp_path, prof, reconfigure=False) is True
+
+        assert "⚠" not in capsys.readouterr().out

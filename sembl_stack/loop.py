@@ -65,15 +65,39 @@ def _is_empty_change(change) -> bool:
 
 
 def _execution_error(change) -> str | None:
-    """A hard executor failure (timeout / crash) recorded by the adapter, or None.
+    """A hard executor failure (timeout / crash / nonzero exit with nothing to show for
+    it) recorded by the adapter, or None.
 
     The adapters convert a `TimeoutExpired` / internal crash into `report["error"]`
     instead of letting it abort the loop; this reads that signal back so the verify
-    stage can BLOCK rather than the loop raising.
+    stage can BLOCK rather than the loop raising. A nonzero exit code paired with an
+    empty diff is the same kind of hard failure (auth error, rate limit, crashed CLI)
+    even when the adapter didn't set `error` explicitly — without this, `verify()` fell
+    through to the generic "executor produced no changes" message and silently threw
+    away the actual reason (e.g. a 401 from the coding agent's own CLI), which is
+    exactly the kind of failure someone debugging "why didn't it change anything" needs
+    to see (codex-adjacent finding from a real manual run, not a review).
     """
     report = getattr(change, "report", {}) or {}
     err = report.get("error")
-    return str(err) if err else None
+    if err:
+        return str(err)
+    rc = report.get("exit_code")
+    if isinstance(rc, int) and rc != 0 and _is_empty_change(change):
+        detail = _first_line(report.get("output")) or _first_line(report.get("stderr"))
+        return f"exit code {rc}" + (f" — {detail}" if detail else "")
+    return None
+
+
+def _first_line(text) -> str | None:
+    """The first non-empty line of `text`, trimmed to a sane length, or None."""
+    if not text or not isinstance(text, str):
+        return None
+    for line in text.splitlines():
+        line = line.strip()
+        if line:
+            return line[:300]
+    return None
 
 
 def _nonzero_exit(change) -> int | None:

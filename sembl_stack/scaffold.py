@@ -14,15 +14,20 @@ from . import presets
 
 
 def write_starter_files(root: Path, preset: str = presets.DEFAULT_PRESET,
-                        *, force: bool = False, include_config: bool = True) -> list[str]:
+                        *, force: bool = False, include_config: bool = True,
+                        config_text: str | None = None) -> list[str]:
     """Write sembl.stack.yaml + task.yaml + bounds.json (skipping existing files
     unless `force`). Returns human-readable messages for whatever was written.
     `include_config=False` when the caller manages the config file itself (init
-    with a custom --config path)."""
+    with a custom --config path). `config_text`, when given, is written verbatim
+    instead of `presets.render(preset)` — the guided TUI uses this to bake the
+    operator's actually-chosen executor/model into a freshly scaffolded config
+    (see `presets.render_full_loop`), instead of a generic preset that can drift
+    from the profile the operator just picked."""
     files = [("task.yaml", presets.starter_task()),
              ("bounds.json", presets.starter_bounds())]
     if include_config:
-        files.insert(0, ("sembl.stack.yaml", presets.render(preset)))
+        files.insert(0, ("sembl.stack.yaml", config_text or presets.render(preset)))
     msgs = []
     for name, content in files:
         target = root / name
@@ -58,7 +63,8 @@ def ensure_demo_repo(root: Path) -> list[str]:
     return msgs
 
 
-def scaffold_demo(root: Path, preset: str = presets.DEFAULT_PRESET) -> list[str]:
+def scaffold_demo(root: Path, preset: str = presets.DEFAULT_PRESET,
+                  *, config_text: str | None = None) -> list[str]:
     """The full demo scaffold: starter files + a committed git repo."""
     root.mkdir(parents=True, exist_ok=True)
-    return write_starter_files(root, preset) + ensure_demo_repo(root)
+    return write_starter_files(root, preset, config_text=config_text) + ensure_demo_repo(root)
