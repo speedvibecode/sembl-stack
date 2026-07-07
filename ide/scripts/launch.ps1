@@ -56,6 +56,21 @@ if (-not (Test-Backend)) {
 
 if ($BackendOnly) { exit 0 }
 
+# Open on the most recent workspace: Theia 1.73.1 deadlocks on a no-workspace
+# boot (see ide/factory-view frontend module's SkillPromptCoordinator note), and
+# restoring the last folder is the right daily-driver behavior anyway.
+$openUrl = $url
+$recentFile = Join-Path $env:USERPROFILE '.theia\recentworkspace.json'
+if (Test-Path $recentFile) {
+    try {
+        $recent = (Get-Content $recentFile -Raw | ConvertFrom-Json).recentRoots | Select-Object -First 1
+        if ($recent -and $recent.StartsWith('file:///')) {
+            $wsPath = [uri]::UnescapeDataString($recent.Substring(8))  # 'c:/Users/...'
+            $openUrl = "$url/#/$wsPath"
+        }
+    } catch { }
+}
+
 # Open as a standalone app window (own taskbar entry, no browser chrome).
 $browsers = @(
     "${env:ProgramFiles(x86)}\Microsoft\Edge\Application\msedge.exe",
@@ -66,7 +81,7 @@ $browsers = @(
 )
 $browser = $browsers | Where-Object { $_ -and (Test-Path $_) } | Select-Object -First 1
 if ($browser) {
-    Start-Process -FilePath $browser -ArgumentList "--app=$url"
+    Start-Process -FilePath $browser -ArgumentList "--app=$openUrl"
 } else {
-    Start-Process $url   # plain default-browser tab as last resort
+    Start-Process $openUrl   # plain default-browser tab as last resort
 }

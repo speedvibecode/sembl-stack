@@ -1,9 +1,10 @@
 import { inject, injectable } from '@theia/core/shared/inversify';
-import { AbstractViewContribution, FrontendApplication, StatusBar, StatusBarAlignment } from '@theia/core/lib/browser';
+import { AbstractViewContribution, FrontendApplication, StatusBar, StatusBarAlignment, Widget } from '@theia/core/lib/browser';
 import { Command } from '@theia/core/lib/common';
 import { WorkspaceService } from '@theia/workspace/lib/browser';
 import { FactoryService } from '../common/factory-protocol';
 import { FactoryViewWidget } from './factory-view-widget';
+import { FactoryStripWidget } from './factory-strip-widget';
 
 export const FactoryViewCommand: Command = {
     id: 'sembl.factory.toggle',
@@ -16,6 +17,7 @@ export class FactoryViewContribution extends AbstractViewContribution<FactoryVie
     @inject(StatusBar) protected readonly statusBar: StatusBar;
     @inject(WorkspaceService) protected readonly workspaceService: WorkspaceService;
     @inject(FactoryService) protected readonly factoryService: FactoryService;
+    @inject(FactoryStripWidget) protected readonly stripWidget: FactoryStripWidget;
 
     constructor() {
         super({
@@ -33,6 +35,23 @@ export class FactoryViewContribution extends AbstractViewContribution<FactoryVie
 
     async onStart(app: FrontendApplication): Promise<void> {
         this.updateStatusBar();
+    }
+
+    /** Runs after the shell is attached — adding widgets from onStart would block startup. */
+    async onDidInitializeLayout(app: FrontendApplication): Promise<void> {
+        try {
+            // The always-visible factory strip (design step 1). It lives in its own
+            // host div ABOVE the application shell (shell offset via CSS) — the
+            // shell's own top panel is display:none whenever the menu bar is hidden,
+            // so widgets parked there never get layout.
+            const host = document.createElement('div');
+            host.id = 'sembl-strip-host';
+            document.body.insertBefore(host, app.shell.node);
+            Widget.attach(this.stripWidget, host);
+            window.dispatchEvent(new Event('resize'));
+        } catch (e) {
+            console.warn('sembl: could not attach the factory strip', e);
+        }
     }
 
     protected async updateStatusBar(): Promise<void> {
