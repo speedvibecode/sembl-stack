@@ -128,14 +128,32 @@ exact mistake that killed the last three surfaces. Concretely, in order:
    axis specifically — this does NOT by itself validate the swappable-pipeline-strip or
    gate-felt-at-n=1 questions §1 also raised; those remain open until the IDE itself is used
    daily.
-2. **Only then, the smallest possible Theia slice:** a single extension whose entire job is
-   rendering that real drift data as a graph panel plus the three tri-state resolution commands
-   (`update spec` / `update code` / `mark exception`). This tests whether the graph-first surface
-   adds real value over the CLI's own `reconcile --live` output before anything else is built on top
-   of it.
-3. **Everything else — top-bar swap control, persona split, discuss panel, run-history ribbon —
-   comes after step 2 is validated**, not before. Build order otherwise inverts the whole point of
-   §1: chrome without a proven signal underneath it is unused chrome by definition.
+2. ~~**Only then, the smallest possible Theia slice**~~ — 🟡 **PARTIALLY DONE 2026-07-05,
+   framework mechanics live-proven; graph view + resolution commands not yet built.** A real,
+   running Theia 1.73.1 browser app (`sembl-stack/ide/`: `drift-view` extension + `browser-app`)
+   with a right-side-panel React widget that reads `.sembl/drift-state.json` through a genuine
+   backend JSON-RPC service (`DriftService` over `/services/sembl-drift`) — not mocked, not
+   hardcoded. Verified with the `preview_*` tools against a live running instance: `tsc -b` and
+   `theia build` both complete with 0 errors, the app boots to `ready`, the command palette's
+   "View: Toggle Drift" opens the panel, and it renders the **same 5 real findings** from
+   step 1's flagship live-proof, fetched live over the RPC channel.
+   **Bug caught and fixed in the process:** the extension's `package.json` pinned
+   `"react": "^18.2.0"`, which the workspace root couldn't satisfy (root hoisted `react@19.2.7`
+   via `@theia/core`'s `^18.3.1 || ^19.0.0` range) — npm silently installed a second, incompatible
+   React copy nested in `drift-view/node_modules`. Two React instances in one page is a classic
+   silent-failure mode: the app built and booted fine, the widget's tab/icon appeared, but its
+   `render()` output was rejected by Theia's React root (`An error occurred in the <Root>
+   component`, swallowed to a blank panel with no thrown exception anywhere in the visible logs).
+   Fixed by widening the range to match `@theia/core`'s (`^18.3.1 || ^19.0.0`) and doing a clean
+   reinstall (deleting the stale lockfile, which had pinned the conflicting resolution even after
+   the range widened). **Still not done:** the graph-panel visualization and the three tri-state
+   resolution commands (`update spec` / `update code` / `mark exception`, Track 5 item 4) — this
+   slice deliberately only proves the plumbing (real backend data reaching a real Theia widget)
+   works, per this section's own smallest-possible-slice discipline.
+3. **Everything else — top-bar swap control, persona split, discuss panel, run-history ribbon,
+   graph view, resolution commands — comes after step 2 is validated by actual daily use**, not
+   before. Build order otherwise inverts the whole point of §1: chrome without a proven signal
+   underneath it is unused chrome by definition.
 
 ## 6. Open questions — not yet resolved by this doc
 

@@ -14,3 +14,10 @@ dist/
 .venv/
 eval/.checkpoint-*.json
 eval/.result-*
+
+# Theia IDE workspace: installed/generated, not source
+ide/node_modules/
+ide/package-lock.json
+ide/*/node_modules/
+ide/*/lib/
+ide/browser-app/src-gen/

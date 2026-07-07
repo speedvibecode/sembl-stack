@@ -1,0 +1,13 @@
+{
+  "private": true,
+  "name": "sembl-ide",
+  "version": "0.1.0",
+  "workspaces": [
+    "drift-view",
+    "browser-app"
+  ],
+  "scripts": {
+    "build": "npm run build --workspace=drift-view && npm run build --workspace=browser-app",
+    "start": "npm run start --workspace=browser-app"
+  }
+}

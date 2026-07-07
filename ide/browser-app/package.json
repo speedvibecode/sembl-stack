@@ -1,0 +1,23 @@
+{
+  "private": true,
+  "name": "sembl-ide-browser-app",
+  "version": "0.1.0",
+  "dependencies": {
+    "@theia/core": "1.73.1",
+    "@theia/filesystem": "1.73.1",
+    "@theia/navigator": "1.73.1",
+    "@theia/workspace": "1.73.1",
+    "@theia/preferences": "1.73.1",
+    "sembl-drift-view": "0.1.0"
+  },
+  "devDependencies": {
+    "@theia/cli": "1.73.1"
+  },
+  "theia": {
+    "target": "browser"
+  },
+  "scripts": {
+    "build": "theia build --mode development",
+    "start": "theia start --port 3000 --hostname 0.0.0.0"
+  }
+}

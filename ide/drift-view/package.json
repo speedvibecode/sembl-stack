@@ -1,0 +1,27 @@
+{
+  "name": "sembl-drift-view",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Theia panel rendering sembl-stack's ambient spec/code drift state (Track 5 item 3, SPEC-theia-factory-ide.md step 2 — the smallest possible slice: render real drift data, nothing else yet).",
+  "main": "lib/browser/drift-view-frontend-module",
+  "typings": "lib/browser/drift-view-frontend-module.d.ts",
+  "theiaExtensions": [
+    {
+      "frontend": "lib/browser/drift-view-frontend-module",
+      "backend": "lib/node/drift-backend-module"
+    }
+  ],
+  "dependencies": {
+    "@theia/core": "1.73.1",
+    "react": "^18.3.1 || ^19.0.0"
+  },
+  "devDependencies": {
+    "typescript": "~5.4.5",
+    "rimraf": "^5.0.5",
+    "@types/react": "^18.2.0"
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "clean": "rimraf lib"
+  }
+}
