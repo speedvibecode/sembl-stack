@@ -100,6 +100,14 @@ Run `/murphyscan` as the standing pre-release/pre-deploy audit (S12).
 
 ## Known traps (each of these cost real hours)
 
+- **Theia app hangs on the splash forever, zero errors anywhere:** Theia 1.73.1's
+  `@theia/ai-core` (forced in via plugin-ext) ships `SkillPromptCoordinator`, whose
+  `onStart` awaits `workspaceService.ready` — unresolved on a no-workspace boot —
+  and Theia awaits all onStarts BEFORE attaching the shell. Patched fire-and-forget
+  in `ide/factory-view/src/browser/factory-view-frontend-module.ts`; re-check on any
+  Theia upgrade. Diagnose this class of hang via `window.theia.container` (grab
+  `FrontendApplicationStateService.state`) + `performance.getEntriesByType('mark')`
+  — the contribution with a start mark and no measure is the one that's wedged.
 - **Theia widget renders blank, no error:** duplicate React. Check
   `find ide -maxdepth 3 -type d -name react` for a second copy before assuming a
   logic bug; extension React ranges must match `@theia/core`'s
