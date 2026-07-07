@@ -25,3 +25,7 @@ ide/*/lib/
 ide/browser-app/src-gen/
 ide/browser-app/gen-webpack*
 ide/browser-app/plugins/
+# The vendored prebuilt native module IS source here (see ide/scripts/) —
+# un-ignore it from the global build/ rule above
+!ide/vendor/windows-ca-certs/build/
+!ide/vendor/windows-ca-certs/build/**
