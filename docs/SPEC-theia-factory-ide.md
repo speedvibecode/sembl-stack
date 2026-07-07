@@ -182,6 +182,20 @@ exact mistake that killed the last three surfaces. Concretely, in order:
    the yaml), discuss panel, persona split, progressive disclosure, visual/brand polish (§6).
    Chrome beyond the above stays gated per §1 — the strip/ribbon/chip themselves are now the
    signal surface daily use is meant to validate.
+4. **Design system LOCKED 2026-07-07** — the owner generated and approved a full visual design
+   (interactive reference: `docs/design/sembl-ide-design-reference.html`; exact tokens,
+   components, and the full target surface map extracted into `docs/DESIGN-sembl-ide.md` —
+   build to it, do not redesign it). The same session locked two ledger additions
+   (`PROCESS-ACTION-PLAN.md` §5): **O9** (the factory guide — a Haiku-class, strictly read-only
+   operator-assist LLM, the second and last sanctioned LLM pattern) and **S13** (executor
+   swappability tiered by adapter class — CLI today, SDK-based next, ACP candidate; the L3
+   contract unchanged). Build order from here is `DESIGN-sembl-ide.md` §5: (1) tokens +
+   restyle + factory strip, (2) live-run stage lighting, (3) BLOCK actions incl. the heavy
+   override, (4) tri-state drift resolution headless-first, (5) graph view via an
+   off-the-shelf graph lib, (6) discuss panel (O8) + factory guide (O9). The owner also
+   directed one-click launch (desktop shortcut → backend + app-mode window; scripts staged
+   in `ide/scripts/launch.ps1`/`launch.vbs`, production build script `build:prod` added) —
+   finish and verify it alongside step 1.
 
 ## 6. Open questions — not yet resolved by this doc
 

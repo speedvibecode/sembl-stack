@@ -144,6 +144,13 @@ reused at three points — `guide.py`'s existing `ai_suggest_paths`, the discuss
 block, and the L0.5 Idea→Spec Q&A — and nowhere else. In every case: LLM proposes into a fixed
 structured schema it cannot extend, a human confirms/edits before it's locked in, and it never
 touches the gate (L5/L8). See `SPEC-ideation-and-chat-shell.md` and `SPEC-theia-factory-ide.md`.
+· **O9 [LOCKED 2026-07-07] the factory guide is the second (and last, absent a new ledger entry)
+sanctioned LLM pattern**, distinct from O8: a cheap (Haiku-class) model that helps the human
+*operate* sembl — explain a verdict, narrate a stuck run, suggest which drift resolution fits.
+Strictly read-only: it may read the run store / config / drift state / docs; it writes no
+artifacts, executes nothing, never touches L5/L8, and never shares a context with an executor.
+Anything it wants *done* becomes a suggestion the human routes through an existing surface
+(an O8 flow or a button). See `DESIGN-sembl-ide.md` §4.
 
 **Strategy/stage (S):** S1 B(measure)+C(build) parallel, **amended by S7** · S2 depth>breadth
 (≈2–4 adapters/layer, not a 100-tool catalog) · S3 winnable bar = O3 + through-deploy
@@ -152,7 +159,13 @@ accountability, not "beats every tool" · S4 private beta (3–5 partners) befor
 bar RAISED**: complete through-deploy + beats-prompt-chains (O3 public) + ~50 adapters · S8 O5 on
 the critical path · S9 per-PR SpecGraph↔CodeGraph reconciliation (advisory, NOT the gate) · S10
 flagship O5 = local-creds-first · S11 flagship = feedback board (Vercel+Supabase) · **S12
-MurphyScan = launch-readiness gate** (the 3rd axis — see §7).
+MurphyScan = launch-readiness gate** (the 3rd axis — see §7) · **S13 [LOCKED 2026-07-07]
+executor swappability is tiered by adapter class, not tied to CLIs**: the L3 contract stays
+artifact-in/diff-out; CLI agents are class 1; class 2 = SDK-based adapters (Claude Agent SDK
+first: structured events for live-run rendering, in-flight bounds enforcement via permission
+hooks as *efficiency only* — the post-hoc deterministic gate remains the judgment, cost/token
+telemetry into the run record); ACP a candidate class 3. Swapping remains a config-level act
+(`sembl.stack.yaml`); never hot-swapped mid-run. See `DESIGN-sembl-ide.md` §4.
 
 ## 6. North Star — recursive PROCESS self-improvement
 The process improves itself **because of the tools of the process**, not because any model gets
