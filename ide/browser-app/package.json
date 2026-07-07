@@ -4,20 +4,51 @@
   "version": "0.1.0",
   "dependencies": {
     "@theia/core": "1.73.1",
+    "@theia/editor": "1.73.1",
+    "@theia/editor-preview": "1.73.1",
+    "@theia/file-search": "1.73.1",
     "@theia/filesystem": "1.73.1",
+    "@theia/keymaps": "1.73.1",
+    "@theia/markers": "1.73.1",
+    "@theia/messages": "1.73.1",
+    "@theia/monaco": "1.73.1",
     "@theia/navigator": "1.73.1",
-    "@theia/workspace": "1.73.1",
+    "@theia/outline-view": "1.73.1",
+    "@theia/plugin-ext": "1.73.1",
+    "@theia/plugin-ext-vscode": "1.73.1",
     "@theia/preferences": "1.73.1",
-    "sembl-drift-view": "0.1.0"
+    "@theia/process": "1.73.1",
+    "@theia/scm": "1.73.1",
+    "@theia/search-in-workspace": "1.73.1",
+    "@theia/task": "1.73.1",
+    "@theia/terminal": "1.73.1",
+    "@theia/userstorage": "1.73.1",
+    "@theia/variable-resolver": "1.73.1",
+    "@theia/vsx-registry": "1.73.1",
+    "@theia/workspace": "1.73.1",
+    "sembl-drift-view": "0.1.0",
+    "sembl-factory-view": "0.1.0"
   },
   "devDependencies": {
     "@theia/cli": "1.73.1"
   },
   "theia": {
-    "target": "browser"
+    "target": "browser",
+    "frontend": {
+      "config": {
+        "applicationName": "Sembl Factory IDE"
+      }
+    }
+  },
+  "theiaPluginsDir": "plugins",
+  "theiaPlugins": {
+    "vscode.git-base": "https://open-vsx.org/api/vscode/git-base/1.95.3/file/vscode.git-base-1.95.3.vsix",
+    "vscode.git": "https://open-vsx.org/api/vscode/git/1.95.3/file/vscode.git-1.95.3.vsix",
+    "vscode.markdown-language-features": "https://open-vsx.org/api/vscode/markdown-language-features/1.95.3/file/vscode.markdown-language-features-1.95.3.vsix"
   },
   "scripts": {
     "build": "theia build --mode development",
-    "start": "theia start --port 3000 --hostname 0.0.0.0"
+    "download:plugins": "theia download:plugins",
+    "start": "theia start --port 3000 --hostname 0.0.0.0 --plugins=local-dir:plugins"
   }
 }

@@ -150,10 +150,38 @@ exact mistake that killed the last three surfaces. Concretely, in order:
    resolution commands (`update spec` / `update code` / `mark exception`, Track 5 item 4) — this
    slice deliberately only proves the plumbing (real backend data reaching a real Theia widget)
    works, per this section's own smallest-possible-slice discipline.
-3. **Everything else — top-bar swap control, persona split, discuss panel, run-history ribbon,
-   graph view, resolution commands — comes after step 2 is validated by actual daily use**, not
-   before. Build order otherwise inverts the whole point of §1: chrome without a proven signal
-   underneath it is unused chrome by definition.
+3. ~~**Everything else comes after step 2 is validated by actual daily use**~~ — 🟡 **PARTIALLY
+   SUPERSEDED 2026-07-07 by owner directive** ("make this IDE ready so I can start using Claude
+   Code/codex from there, all tools in one place"): daily-drivability itself became the priority,
+   consistent with the build-for-owner-first memory. Built and live-verified 2026-07-07:
+   - **Full IDE horizontals via stock Theia packages** (zero custom code): embedded terminal
+     (node-pty 1.2.0-beta.12 win32 prebuilds — proven live: command typed in the IDE terminal
+     executed by a real shell; `claude --version` → `2.1.179 (Claude Code)` from inside the IDE),
+     search-in-workspace, file-search, markers/problems, keymaps, messages, editor-preview, task,
+     scm, userstorage, variable-resolver.
+   - **VS Code plugin system + Open VSX marketplace** (`@theia/plugin-ext-vscode` +
+     `@theia/vsx-registry`), with builtin plugins pinned in `browser-app/package.json`
+     `theiaPlugins` (vscode.git 1.95.3 + git-base + markdown-language-features; restore via
+     `npm run download:plugins`). Git proven live: SCM view showed the repo's real 25 changes,
+     status bar showed `master*`. Any further tool (LSPs, themes, linters) is user-installable
+     from the Extensions view.
+   - **The factory chrome, v1** (`ide/factory-view/`, same thin-renderer pattern as drift-view):
+     a bottom **Factory panel** = pipeline strip (L1–L8 segments, adapter names read live from
+     `sembl.stack.yaml` via a line-wise reader mirroring `config.py` DEFAULTS; config-set vs
+     default visually distinguished) + run-history ribbon over `.sembl/runs/` (PASS/WARN/BLOCK
+     ticks; click → verdict, reasons, task text, attempt count) + a status-bar verdict chip.
+     Proven live against a real `gate+sandbox` run (BLOCK → retry → PASS, 2 attempts) rendered
+     from real run-store JSON. App renamed **"Sembl Factory IDE"**.
+   - Windows build gotchas discovered + handled: (a) `@vscode/windows-ca-certs` cannot node-gyp
+     here (MSB8040 Spectre libs); prebuilt with `SpectreMitigation=false`, vendored at
+     `ide/vendor/windows-ca-certs/`, auto-restored by the `postinstall` script — Theia's backend
+     bundler hard-requires it on win32. (b) `theia build` while the app is running fails with a
+     file-lock on `lib/backend/native/*.node` — stop the server before rebuilding.
+   **Still not built, still gated on daily use:** graph view, the three tri-state resolution
+   commands (Track 5 item 4), top-bar swap *control* (strip is read-only; swapping = editing
+   the yaml), discuss panel, persona split, progressive disclosure, visual/brand polish (§6).
+   Chrome beyond the above stays gated per §1 — the strip/ribbon/chip themselves are now the
+   signal surface daily use is meant to validate.
 
 ## 6. Open questions — not yet resolved by this doc
 

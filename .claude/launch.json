@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "sembl-theia-ide",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "C:/Users/totla/Desktop/projects/sembl-stack/ide/browser-app", "run", "start"],
+      "port": 3000
+    }
+  ]
+}

@@ -59,7 +59,7 @@ export const browserOptions = {
         'bundle': './src-gen/frontend/index.js',
         'secondary-window': './src-gen/frontend/secondary-index.js',
         'editor.worker': '@theia/monaco-editor-core/esm/vs/editor/common/services/editorWebWorkerMain.js',
-        
+        'plugin-worker': '@theia/plugin-ext/lib/hosted/browser/worker/worker-main.js',
     },
     assetNames: '[name]',
     bundle: true,
@@ -86,6 +86,16 @@ export const browserOptions = {
                     // copy secondary window html file to lib folder
                     from: join(__dirname, 'src-gen/frontend/secondary-window.html'),
                     to: join(__dirname, 'lib', 'frontend')
+                },
+                {
+                    // copy webview files to lib folder
+                    from: join(resolvePackagePath('@theia/plugin-ext', __dirname), '..', 'src', 'main', 'browser', 'webview', 'pre', '*'),
+                    to: join(__dirname, 'lib', 'webview', 'pre')
+                },
+                {
+                    // copy frontend plugin host files
+                    from: join(resolvePackagePath('@theia/plugin-ext-vscode', __dirname), '..', 'lib', 'node', 'context', 'plugin-vscode-init-fe.js'),
+                    to: join(__dirname, 'lib', 'frontend', 'context')
                 }
             ]
         }),

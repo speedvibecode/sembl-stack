@@ -1,24 +1,24 @@
 import { ContainerModule } from '@theia/core/shared/inversify';
 import { bindViewContribution, FrontendApplicationContribution, WidgetFactory } from '@theia/core/lib/browser';
 import { WebSocketConnectionProvider } from '@theia/core/lib/browser/messaging/ws-connection-provider';
-import { DriftService, DRIFT_SERVICE_PATH } from '../common/drift-protocol';
-import { DriftViewContribution } from './drift-view-contribution';
-import { DriftViewWidget } from './drift-view-widget';
+import { FactoryService, FACTORY_SERVICE_PATH } from '../common/factory-protocol';
+import { FactoryViewContribution } from './factory-view-contribution';
+import { FactoryViewWidget } from './factory-view-widget';
 
 export default new ContainerModule(bind => {
     // bindViewContribution already registers Command/Menu/Keybinding contributions —
     // re-binding them here double-registers the toggle command (a startup WARN).
-    bindViewContribution(bind, DriftViewContribution);
-    bind(FrontendApplicationContribution).toService(DriftViewContribution);
+    bindViewContribution(bind, FactoryViewContribution);
+    bind(FrontendApplicationContribution).toService(FactoryViewContribution);
 
-    bind(DriftViewWidget).toSelf();
+    bind(FactoryViewWidget).toSelf();
     bind(WidgetFactory).toDynamicValue(ctx => ({
-        id: DriftViewWidget.ID,
-        createWidget: () => ctx.container.get(DriftViewWidget)
+        id: FactoryViewWidget.ID,
+        createWidget: () => ctx.container.get(FactoryViewWidget)
     })).inSingletonScope();
 
-    bind(DriftService).toDynamicValue(ctx => {
+    bind(FactoryService).toDynamicValue(ctx => {
         const provider = ctx.container.get(WebSocketConnectionProvider);
-        return provider.createProxy<DriftService>(DRIFT_SERVICE_PATH);
+        return provider.createProxy<FactoryService>(FACTORY_SERVICE_PATH);
     }).inSingletonScope();
 });

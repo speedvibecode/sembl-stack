@@ -1,6 +1,7 @@
 import * as React from 'react';
 import { inject, injectable, postConstruct } from '@theia/core/shared/inversify';
 import { ReactWidget } from '@theia/core/lib/browser';
+import { WorkspaceService } from '@theia/workspace/lib/browser';
 import { DriftFinding, DriftService } from '../common/drift-protocol';
 
 export const DRIFT_VIEW_WIDGET_ID = 'sembl-drift-view';
@@ -17,8 +18,9 @@ export class DriftViewWidget extends ReactWidget {
     static readonly LABEL = 'Drift';
 
     @inject(DriftService) protected readonly driftService: DriftService;
+    @inject(WorkspaceService) protected readonly workspaceService: WorkspaceService;
 
-    protected repoPath = 'C:/Users/totla/Desktop/projects/sembl-stack/examples/flagship-feedback-board';
+    protected repoPath = '';
     protected findings: DriftFinding[] = [];
     protected loaded = false;
 
@@ -29,7 +31,20 @@ export class DriftViewWidget extends ReactWidget {
         this.title.caption = DriftViewWidget.LABEL;
         this.title.closable = true;
         this.title.iconClass = 'fa fa-code-fork';
-        this.refresh();
+        this.bootstrap();
+    }
+
+    /** Default the repo to the opened workspace root; the input stays editable. */
+    protected async bootstrap(): Promise<void> {
+        if (!this.repoPath) {
+            const roots = await this.workspaceService.roots;
+            if (roots.length > 0) {
+                const p = roots[0].resource.path.toString();
+                const m = /^\/([a-zA-Z]:\/.*)$/.exec(p);
+                this.repoPath = m ? m[1] : p;
+            }
+        }
+        await this.refresh();
     }
 
     protected async refresh(): Promise<void> {

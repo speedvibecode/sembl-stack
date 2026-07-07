@@ -1,5 +1,14 @@
 # Handoff: Theia factory IDE — continue building here, in sembl-stack
 
+> **Addendum 2026-07-07:** the IDE is now a full daily-drivable app — embedded terminal
+> (agent CLIs proven inside it), git via the builtin VS Code plugin, search, Open VSX
+> Extensions view, plus a new bottom **Factory panel** (`ide/factory-view/`: L1–L8
+> pipeline strip from `sembl.stack.yaml` + run-history ribbon over `.sembl/runs/` + a
+> status-bar verdict chip). See `SPEC-theia-factory-ide.md` §5 step 3 for the full
+> live-verified account and the two new Windows build traps (vendored
+> `@vscode/windows-ca-certs` in `ide/vendor/`, and stop-the-server-before-rebuild).
+> The rest of this doc predates that and describes the older, thinner state.
+
 Written 2026-07-05 for a fresh chat session rooted in this repo (`sembl-stack`), to
 pick up the Theia IDE build without needing the prior conversation's history. That
 prior conversation ran in the sibling `sembl` repo as its primary working directory,

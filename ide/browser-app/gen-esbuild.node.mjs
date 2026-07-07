@@ -22,13 +22,16 @@ export const nodeOptions = {
         'main': './src-gen/backend/main',
         'ipc-bootstrap': '@theia/core/lib/node/messaging/ipc-bootstrap',
         
+        // VS Code extension support:
+        'plugin-host': '@theia/plugin-ext/lib/hosted/node/plugin-host',
         
+        // Make sure the node-pty thread workers can be executed:
+        'worker/conoutSocketWorker': 'node-pty/lib/worker/conoutSocketWorker',
+        'conpty_console_list_agent': 'node-pty/lib/conpty_console_list_agent',
         
-        
-        
-        
+        'backend-init-theia': '@theia/plugin-ext/lib/hosted/node/scanners/backend-init-theia',
         'parcel-watcher': '@theia/filesystem/lib/node/parcel-watcher',
-        
+        'plugin-vscode-init': '@theia/plugin-ext-vscode/lib/node/plugin-vscode-init',
         
         
     },
@@ -44,13 +47,18 @@ export const nodeOptions = {
     plugins: [
         problemMatcherPlugin(watch, 'node'),
         nativeDependenciesPlugin({
-            pty: false,
-            ripgrep: false,
+            pty: true,
+            ripgrep: true,
             trash: true,
             nativeBindings
         }),
         copy({
             assets: [
+                {
+                    // copy shell integration scripts
+                    from: join(resolvePackagePath('@theia/terminal', __dirname), '..', 'src', 'node', 'shell-integrations', '**', '*'),
+                    to: join(__dirname, 'lib', 'backend', 'shell-integrations')
+                },
             ]
         }),
         sourceMapPathsPlugin()

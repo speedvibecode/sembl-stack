@@ -4,10 +4,12 @@
   "version": "0.1.0",
   "workspaces": [
     "drift-view",
+    "factory-view",
     "browser-app"
   ],
   "scripts": {
-    "build": "npm run build --workspace=drift-view && npm run build --workspace=browser-app",
+    "postinstall": "node scripts/install-windows-ca-certs.js",
+    "build": "npm run build --workspace=drift-view && npm run build --workspace=factory-view && npm run build --workspace=browser-app",
     "start": "npm run start --workspace=browser-app"
   }
 }
