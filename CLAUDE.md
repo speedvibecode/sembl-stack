@@ -137,3 +137,12 @@ Run `/murphyscan` as the standing pre-release/pre-deploy audit (S12).
   single-shot delegated builds — don't use it as a delegate.
 - `eval/.fg-*`, `eval/.suite-*`, `eval/.checkpoint-*` are local scratch from
   live runs — never commit them.
+
+## Systems thinking (owner directive, 2026-07-09 — applies to everything here)
+
+Supremely valued at every scale, smallest fix to biggest design: every change
+is an intervention in a system — name the whole before touching the part; fix
+the class, not the instance; prefer structural leverage (contracts, invariants,
+defaults) over patching call sites; build feedback loops so the system reports
+its own state; when one part breaks, assume its siblings are broken too. Full
+operational version: `~/.claude/CLAUDE.md`.
