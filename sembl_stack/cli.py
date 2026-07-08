@@ -784,6 +784,47 @@ def discuss_confirm(repo, proposal_file):
 
 
 @main.command()
+@click.argument("question")
+@click.option("--repo", default=".")
+@click.option("--executor", default="claude", show_default=True,
+              help="claude | opencode | mock (mock makes no external call and "
+                   "always yields the \"guide unavailable\" fallback).")
+@click.option("--model", default=None,
+              help="Defaults to a Haiku-class model when --executor claude "
+                   "(O9: the factory guide is cheap-model-only).")
+@click.option("--timeout", default=60, show_default=True, type=int)
+@click.option("--json", "as_json", is_flag=True,
+              help="Print the raw reply dict as JSON (the seam an IDE panel spawns).")
+def explain(question, repo, executor, model, timeout, as_json):
+    """O9: the factory guide — a read-only, cheap-model advisor for OPERATING sembl.
+
+    Explains a verdict, narrates a stuck run, suggests which drift resolution
+    fits. Strictly read-only (see PROCESS-ACTION-PLAN.md O9): it never writes a
+    file, never executes anything, and never touches L5/L8 — anything it wants
+    done is only ever a printed suggestion, routed through an existing command.
+    """
+    from . import factory_guide
+    root = Path(repo).resolve()
+    reply = factory_guide.ask(root, executor, question, model=model, timeout=timeout)
+    if as_json:
+        click.echo(json.dumps(reply))
+        return
+    if reply.get("fallback"):
+        click.echo(
+            "guide unavailable (model call failed or unparseable) — check that "
+            "your executor CLI is logged in, or try --executor opencode")
+        return
+    click.echo(reply.get("answer") or "")
+    suggestions = reply.get("suggestions") or []
+    if suggestions:
+        click.echo("")
+        click.secho("try:", dim=True)
+        for i, s in enumerate(suggestions, 1):
+            click.echo(f"  {i}. {s.get('command', '')}  ", nl=False)
+            click.secho(f"— {s.get('why', '')}", dim=True)
+
+
+@main.command()
 @click.option("--config", "config_path", default="sembl.stack.yaml")
 def doctor(config_path):
     """Preflight: check the environment for the layers your config selects."""
