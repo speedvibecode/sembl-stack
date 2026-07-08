@@ -717,6 +717,44 @@ def init(preset, config_path, with_task, force):
 
 
 @main.command()
+@click.argument("text")
+@click.option("--repo", default=".")
+@click.option("--executor", default="mock", show_default=True,
+              help="claude | opencode | mock (mock always falls back to an empty "
+                   "proposal for manual entry — no external call).")
+@click.option("--model", default=None)
+@click.option("--timeout", default=90, show_default=True, type=int)
+@click.option("--yes", is_flag=True,
+              help="Materialize the proposal immediately via confirm_task "
+                   "(task.yaml + bounds.json), skipping human review.")
+def discuss(text, repo, executor, model, timeout, yes):
+    """O8 use #2: plain-English change request -> a reviewed Task+Bounds proposal.
+
+    Bounded-LLM-into-fixed-schema (see PROCESS-ACTION-PLAN.md O8): one read-only
+    call proposes task_text/editable_paths/forbidden_areas/clarifying_questions
+    into a fixed schema it cannot extend; nothing is written until confirmed
+    (here, via --yes; in the IDE, via the discuss panel's confirm step).
+    """
+    from . import discuss as discuss_mod
+    root = Path(repo).resolve()
+    proposal = discuss_mod.propose_task(root, executor, text, model=model, timeout=timeout)
+    click.echo(json.dumps(proposal, indent=2))
+    if yes:
+        try:
+            task_path, bounds_path = discuss_mod.confirm_task(root, proposal)
+        except ValueError as e:
+            # write_task_and_bounds refuses empty text / no editable paths — surface
+            # that as usage guidance, not a traceback (the fallback proposal is empty).
+            raise click.UsageError(f"{e} — review the proposal and fill it in first")
+        click.secho(f"\nwrote {task_path} + {bounds_path}", fg="green")
+        click.echo("next:\n  sembl-stack loop task.yaml")
+    else:
+        click.echo(
+            "\n(review/edit this proposal, then confirm it — via the IDE discuss "
+            "panel, or re-run with --yes to materialize it as-is)")
+
+
+@main.command()
 @click.option("--config", "config_path", default="sembl.stack.yaml")
 def doctor(config_path):
     """Preflight: check the environment for the layers your config selects."""
