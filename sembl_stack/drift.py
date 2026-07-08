@@ -115,6 +115,10 @@ def check_drift(spec_graph: SpecGraph, code_graph: dict, *,
             "last_seen": now,
             "acknowledged": acknowledged,
         }
+        # A recorded exception (resolve_exception) is a permanent human decision —
+        # it must survive every subsequent check, not just the one it was made in.
+        if entry is not None and entry.get("exception"):
+            next_findings[key]["exception"] = entry["exception"]
         if not acknowledged:
             pending.append(finding)
 

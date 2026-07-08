@@ -58,6 +58,24 @@ def test_resolve_exception_missing_state_file_is_a_noop(tmp_path):
     assert ok is False
 
 
+def test_exception_survives_subsequent_check_drift(tmp_path):
+    """The exception record is a permanent human decision — a later check_drift on the
+    same still-present drift must carry it (and acknowledged) forward, not rebuild the
+    entry without it."""
+    state_path = tmp_path / "drift-state.json"
+    items = _seed_two_pending(state_path)
+    key = items[0][0]
+    drift.resolve_exception(key, "kept intentionally", state_path=state_path)
+
+    # same graphs → same findings still present on the next ambient check
+    drift.check_drift(_two_concept_spec(), _UNRELATED_CODE_GRAPH, state_path=state_path)
+
+    entry = drift.entry_for_key(key, state_path=state_path)
+    assert entry["acknowledged"] is True
+    assert entry["exception"]["reason"] == "kept intentionally"
+    assert len(drift.pending_drift(state_path=state_path)) == 1
+
+
 # --- CLI: drift-resolve --mark-exception --------------------------------------
 
 def test_cli_mark_exception_by_index_drops_from_pending(tmp_path):
