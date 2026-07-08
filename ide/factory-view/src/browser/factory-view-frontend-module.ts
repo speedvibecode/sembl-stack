@@ -6,6 +6,8 @@ import { FactoryService, FACTORY_SERVICE_PATH } from '../common/factory-protocol
 import { FactoryViewContribution } from './factory-view-contribution';
 import { FactoryViewWidget } from './factory-view-widget';
 import { FactoryStripWidget } from './factory-strip-widget';
+import { DiscussContribution } from './discuss-contribution';
+import { DiscussWidget } from './discuss-widget';
 
 // Upstream boot-deadlock workaround (Theia 1.73.1): @theia/ai-core ships (via
 // plugin-ext, not by our choice) a SkillPromptCoordinator whose onStart awaits
@@ -33,6 +35,18 @@ export default new ContainerModule(bind => {
     bind(WidgetFactory).toDynamicValue(ctx => ({
         id: FactoryViewWidget.ID,
         createWidget: () => ctx.container.get(FactoryViewWidget)
+    })).inSingletonScope();
+
+    // Design step 6b: the discuss panel is a second, independent widget in this
+    // extension (own contribution class, same bindViewContribution pattern, so its
+    // command isn't double-registered either).
+    bindViewContribution(bind, DiscussContribution);
+    bind(FrontendApplicationContribution).toService(DiscussContribution);
+
+    bind(DiscussWidget).toSelf();
+    bind(WidgetFactory).toDynamicValue(ctx => ({
+        id: DiscussWidget.ID,
+        createWidget: () => ctx.container.get(DiscussWidget)
     })).inSingletonScope();
 
     bind(FactoryService).toDynamicValue(ctx => {

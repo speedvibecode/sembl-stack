@@ -118,6 +118,36 @@ def propose_task(root: Path, executor: str, user_text: str,
     return _parse_reply(guide._extract_result_text(executor, out), candidates)
 
 
+def sanitize_proposal(root: Path, proposal: dict) -> dict:
+    """A possibly human-edited proposal (e.g. from the IDE discuss panel) -> the
+    fixed schema, same coercion/filtering `_parse_reply` applies to a model reply.
+    Never raises: a non-dict or garbage input degrades to the fallback proposal,
+    exactly like an unparseable model reply does."""
+    from . import guide                        # lazy: guide is the shared executor plumbing
+    if not isinstance(proposal, dict):
+        return _fallback_proposal()
+    candidates = guide._candidate_paths(root)
+    candidate_set = {c.rstrip("/") for c in candidates}
+
+    def _list_of_str(v) -> list[str]:
+        return [str(x) for x in v if str(x).strip()] if isinstance(v, list) else []
+
+    def _paths_in_candidates(v) -> list[str]:
+        out: list[str] = []
+        for p in _list_of_str(v):
+            norm = p.strip().rstrip("/")
+            if norm and norm in candidate_set and p not in out:
+                out.append(p)
+        return out
+
+    return {
+        "task_text": str(proposal.get("task_text") or ""),
+        "editable_paths": _paths_in_candidates(proposal.get("editable_paths")),
+        "forbidden_areas": _paths_in_candidates(proposal.get("forbidden_areas")),
+        "clarifying_questions": _list_of_str(proposal.get("clarifying_questions"))[:3],
+    }
+
+
 def confirm_task(root: Path, proposal: dict) -> tuple[Path, Path]:
     """The human-confirmed proposal (possibly edited) -> task.yaml + bounds.json.
 

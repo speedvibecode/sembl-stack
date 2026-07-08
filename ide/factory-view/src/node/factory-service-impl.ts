@@ -2,7 +2,10 @@ import { injectable } from '@theia/core/shared/inversify';
 import * as fs from 'fs';
 import * as path from 'path';
 import { spawn } from 'child_process';
-import { FactoryService, FactoryState, PipelineLayer, RerunResult, RunSummary } from '../common/factory-protocol';
+import {
+    DiscussConfirmResult, DiscussProposal, FactoryService, FactoryState, PipelineLayer,
+    RerunResult, RunSummary
+} from '../common/factory-protocol';
 
 // Mirrors sembl_stack/config.py DEFAULTS["layers"] — the resolution rule is
 // defaults < sembl.stack.yaml, same as the CLI. Keep this table in sync with config.py.
@@ -161,6 +164,44 @@ function resolveTaskFile(repoPath: string): string | undefined {
     return fs.existsSync(candidate) ? candidate : undefined;
 }
 
+const DISCUSS_FALLBACK: Omit<DiscussProposal, 'raw'> = {
+    taskText: '', editablePaths: [], forbiddenAreas: [], clarifyingQuestions: [], fallback: true
+};
+
+/**
+ * `sembl_stack.cli discuss` prints `json.dumps(proposal, indent=2)` as the FIRST thing
+ * on stdout, followed by either a "wrote ..." line (--yes) or a "(review/edit...)" note —
+ * never JSON-only. Extract the first balanced {...} object rather than assuming the
+ * whole stream parses, so those trailing lines don't break the parse.
+ */
+function firstBalancedJsonObject(text: string): string | undefined {
+    const start = text.indexOf('{');
+    if (start === -1) { return undefined; }
+    let depth = 0;
+    for (let i = start; i < text.length; i++) {
+        const c = text[i];
+        if (c === '{') { depth++; }
+        else if (c === '}') {
+            depth--;
+            if (depth === 0) { return text.slice(start, i + 1); }
+        }
+    }
+    return undefined;
+}
+
+/** snake_case (engine schema) -> camelCase (protocol) DiscussProposal, or undefined if
+ * the parsed object isn't shaped like a proposal at all. */
+function toDiscussProposal(data: any): Omit<DiscussProposal, 'fallback' | 'raw'> | undefined {
+    if (!data || typeof data !== 'object') { return undefined; }
+    const asStrArr = (v: any): string[] => Array.isArray(v) ? v.map(x => String(x)) : [];
+    return {
+        taskText: typeof data.task_text === 'string' ? data.task_text : '',
+        editablePaths: asStrArr(data.editable_paths),
+        forbiddenAreas: asStrArr(data.forbidden_areas),
+        clarifyingQuestions: asStrArr(data.clarifying_questions)
+    };
+}
+
 @injectable()
 export class FactoryServiceImpl implements FactoryService {
 
@@ -257,5 +298,113 @@ export class FactoryServiceImpl implements FactoryService {
             message: `re-run spawned: ${python} -m sembl_stack.cli loop ${taskFile}`
                 + (logFd !== undefined ? ` (log: ${logPath})` : '')
         };
+    }
+
+    async discussPropose(repoPath: string, userText: string, executor: string, model?: string): Promise<DiscussProposal> {
+        const repo = normalizeRepoPath(repoPath);
+        const python = resolvePythonExecutable(repo);
+        const args = ['-m', 'sembl_stack.cli', 'discuss', userText, '--repo', repo, '--executor', executor];
+        if (model) { args.push('--model', model); }
+
+        let stdout = '';
+        let stderr = '';
+        let settled = false;
+        return new Promise<DiscussProposal>(resolve => {
+            const finish = (proposal: DiscussProposal) => {
+                if (settled) { return; }
+                settled = true;
+                resolve(proposal);
+            };
+            let child;
+            try {
+                // async spawn — NOT spawnSync: the LLM call this shells out to can take
+                // tens of seconds, and spawnSync would block the whole backend process.
+                child = spawn(python, args, { cwd: repo, stdio: ['ignore', 'pipe', 'pipe'] });
+            } catch (e) {
+                finish({ ...DISCUSS_FALLBACK, raw: String(e) });
+                return;
+            }
+            const timer = setTimeout(() => {
+                try { child.kill(); } catch { /* already dead */ }
+                finish({ ...DISCUSS_FALLBACK, raw: stdout || stderr });
+            }, 120000);
+            child.stdout?.on('data', d => { stdout += d.toString(); });
+            child.stderr?.on('data', d => { stderr += d.toString(); });
+            child.on('error', e => {
+                clearTimeout(timer);
+                finish({ ...DISCUSS_FALLBACK, raw: String(e) });
+            });
+            child.on('close', code => {
+                clearTimeout(timer);
+                if (code !== 0) {
+                    finish({ ...DISCUSS_FALLBACK, raw: stderr || stdout });
+                    return;
+                }
+                const jsonText = firstBalancedJsonObject(stdout);
+                let parsed: any;
+                try {
+                    parsed = jsonText ? JSON.parse(jsonText) : undefined;
+                } catch {
+                    parsed = undefined;
+                }
+                const proposal = toDiscussProposal(parsed);
+                if (!proposal || (!proposal.taskText && proposal.editablePaths.length === 0
+                    && proposal.forbiddenAreas.length === 0 && proposal.clarifyingQuestions.length === 0)) {
+                    finish({ ...DISCUSS_FALLBACK, raw: stdout });
+                    return;
+                }
+                finish({ ...proposal, fallback: false });
+            });
+        });
+    }
+
+    async discussConfirm(repoPath: string, proposal: DiscussProposal): Promise<DiscussConfirmResult> {
+        const repo = normalizeRepoPath(repoPath);
+        const python = resolvePythonExecutable(repo);
+        const args = ['-m', 'sembl_stack.cli', 'discuss-confirm', '--repo', repo];
+        const payload = JSON.stringify({
+            task_text: proposal.taskText,
+            editable_paths: proposal.editablePaths,
+            forbidden_areas: proposal.forbiddenAreas,
+            clarifying_questions: proposal.clarifyingQuestions
+        });
+
+        let stdout = '';
+        let stderr = '';
+        let settled = false;
+        return new Promise<DiscussConfirmResult>(resolve => {
+            const finish = (result: DiscussConfirmResult) => {
+                if (settled) { return; }
+                settled = true;
+                resolve(result);
+            };
+            let child;
+            try {
+                child = spawn(python, args, { cwd: repo, stdio: ['pipe', 'pipe', 'pipe'] });
+            } catch (e) {
+                finish({ ok: false, message: `failed to spawn discuss-confirm: ${e}` });
+                return;
+            }
+            const timer = setTimeout(() => {
+                try { child.kill(); } catch { /* already dead */ }
+                finish({ ok: false, message: 'discuss-confirm timed out' });
+            }, 30000);
+            child.stdout?.on('data', d => { stdout += d.toString(); });
+            child.stderr?.on('data', d => { stderr += d.toString(); });
+            child.on('error', e => {
+                clearTimeout(timer);
+                finish({ ok: false, message: `discuss-confirm failed to run: ${e}` });
+            });
+            child.on('close', code => {
+                clearTimeout(timer);
+                if (code === 0) {
+                    finish({ ok: true, message: stdout.trim() });
+                } else {
+                    finish({ ok: false, message: (stderr || stdout).trim() || `discuss-confirm exited ${code}` });
+                }
+            });
+            child.stdin?.write(payload);
+            child.stdin?.end();
+        });
     }
 }

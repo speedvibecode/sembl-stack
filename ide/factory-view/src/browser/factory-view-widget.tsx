@@ -202,6 +202,8 @@ export class FactoryViewWidget extends ReactWidget {
                     title="spec↔code drift findings and resolution" style={this.headerButtonStyle()}>drift</button>
                 <button onClick={() => this.toggleView('sembl.graph.toggle')}
                     title="the run's spec graph, drift-tinted" style={this.headerButtonStyle()}>spec graph</button>
+                <button onClick={() => this.toggleView('sembl.discuss.toggle')}
+                    title="plan a task in plain english" style={this.headerButtonStyle()}>discuss</button>
                 <button onClick={() => this.refresh()} style={this.headerButtonStyle()}>refresh</button>
             </div>
             <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '22px' }}>

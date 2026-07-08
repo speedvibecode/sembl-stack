@@ -47,6 +47,26 @@ export interface RerunResult {
     message: string;
 }
 
+// The discuss panel's O8 use #2 (bounded-LLM-into-fixed-schema): a plain-English
+// request -> this fixed proposal shape, reviewed/edited by a human, then confirmed
+// through `discussConfirm` — never the gate, never a second LLM call to extend it.
+export interface DiscussProposal {
+    taskText: string;
+    editablePaths: string[];
+    forbiddenAreas: string[];
+    clarifyingQuestions: string[];
+    /** true when the engine call failed/timed out/came back empty — the panel must
+     * show "fill it in manually" rather than pretend a real proposal arrived. */
+    fallback: boolean;
+    /** raw stdout of the `discuss` CLI call, only set on fallback, for debugging. */
+    raw?: string;
+}
+
+export interface DiscussConfirmResult {
+    ok: boolean;
+    message: string;
+}
+
 export interface FactoryService {
     /** Read `<repoPath>/sembl.stack.yaml` + `<repoPath>/.sembl/runs/` and return the rendered state. */
     getState(repoPath: string): Promise<FactoryState>;
@@ -58,4 +78,18 @@ export interface FactoryService {
      * the taskfile/python resolution rules.
      */
     rerunTask(repoPath: string): Promise<RerunResult>;
+
+    /**
+     * Discuss panel — propose step: `sembl_stack.cli discuss <userText>` (O8 use #2),
+     * a bounded, read-only LLM call that never touches the gate. Always resolves a
+     * DiscussProposal, even on failure/timeout (fallback: true) — never rejects.
+     */
+    discussPropose(repoPath: string, userText: string, executor: string, model?: string): Promise<DiscussProposal>;
+
+    /**
+     * Discuss panel — confirm step: `sembl_stack.cli discuss-confirm`, purely
+     * deterministic (no LLM), writes task.yaml + bounds.json through the same
+     * tool-owned writer every other entry point uses.
+     */
+    discussConfirm(repoPath: string, proposal: DiscussProposal): Promise<DiscussConfirmResult>;
 }

@@ -754,6 +754,35 @@ def discuss(text, repo, executor, model, timeout, yes):
             "panel, or re-run with --yes to materialize it as-is)")
 
 
+@main.command("discuss-confirm")
+@click.option("--repo", default=".")
+@click.option("--proposal-file", "proposal_file", default=None,
+              help="Read the (possibly human-edited) proposal JSON from this file; "
+                   "reads stdin when omitted (the IDE discuss panel's confirm step).")
+def discuss_confirm(repo, proposal_file):
+    """Materialize a (possibly human-edited) discuss proposal -> task.yaml + bounds.json.
+
+    No LLM work here — `sanitize_proposal` coerces/filters the incoming JSON to the
+    fixed schema exactly like `_parse_reply` does for a model reply, then
+    `confirm_task` writes the artifacts through the same tool-owned writer every
+    other entry point uses.
+    """
+    from . import discuss as discuss_mod
+    root = Path(repo).resolve()
+    raw = (Path(proposal_file).read_text(encoding="utf-8-sig") if proposal_file
+           else click.get_text_stream("stdin").read())
+    try:
+        data = json.loads(raw.lstrip("﻿"))
+    except (ValueError, TypeError) as e:
+        raise click.UsageError(f"invalid proposal JSON: {e}")
+    sanitized = discuss_mod.sanitize_proposal(root, data)
+    try:
+        task_path, bounds_path = discuss_mod.confirm_task(root, sanitized)
+    except ValueError as e:
+        raise click.UsageError(f"{e} — review the proposal and fill it in first")
+    click.secho(f"wrote {task_path} + {bounds_path}", fg="green")
+
+
 @main.command()
 @click.option("--config", "config_path", default="sembl.stack.yaml")
 def doctor(config_path):

@@ -194,3 +194,60 @@ class TestDiscussCli:
             "task_text": "", "editable_paths": [], "forbidden_areas": [],
             "clarifying_questions": [],
         }
+
+
+class TestDiscussConfirmCli:
+    def test_confirm_via_proposal_file(self, tmp_path):
+        (tmp_path / "src").mkdir()
+        proposal = {
+            "task_text": "Add a login form.",
+            "editable_paths": ["src/"],
+            "forbidden_areas": [],
+            "clarifying_questions": [],
+        }
+        proposal_file = tmp_path / "proposal.json"
+        proposal_file.write_text(json.dumps(proposal), encoding="utf-8")
+        result = CliRunner().invoke(main, [
+            "discuss-confirm", "--repo", str(tmp_path),
+            "--proposal-file", str(proposal_file)])
+        assert result.exit_code == 0, result.output
+        assert (tmp_path / "task.yaml").is_file()
+        assert (tmp_path / "bounds.json").is_file()
+        data = json.loads((tmp_path / "task.yaml").read_text(encoding="utf-8"))
+        assert data["text"] == "Add a login form."
+        bounds = json.loads((tmp_path / "bounds.json").read_text(encoding="utf-8"))
+        assert bounds["editable_paths"] == ["src/"]
+
+    def test_confirm_via_stdin(self, tmp_path):
+        (tmp_path / "src").mkdir()
+        proposal = {
+            "task_text": "Add a widget.",
+            "editable_paths": ["src/"],
+            "forbidden_areas": [],
+            "clarifying_questions": [],
+        }
+        result = CliRunner().invoke(main, [
+            "discuss-confirm", "--repo", str(tmp_path)], input=json.dumps(proposal))
+        assert result.exit_code == 0, result.output
+        assert (tmp_path / "task.yaml").is_file()
+        data = json.loads((tmp_path / "task.yaml").read_text(encoding="utf-8"))
+        assert data["text"] == "Add a widget."
+
+    def test_invalid_json_is_a_usage_error(self, tmp_path):
+        result = CliRunner().invoke(main, [
+            "discuss-confirm", "--repo", str(tmp_path)], input="not json at all")
+        assert result.exit_code != 0
+        assert "invalid proposal JSON" in result.output
+
+    def test_out_of_candidate_paths_dropped_leaves_no_editable_paths(self, tmp_path):
+        (tmp_path / "src").mkdir()
+        proposal = {
+            "task_text": "Add a thing.",
+            "editable_paths": ["made-up-dir/"],
+            "forbidden_areas": [],
+            "clarifying_questions": [],
+        }
+        result = CliRunner().invoke(main, [
+            "discuss-confirm", "--repo", str(tmp_path)], input=json.dumps(proposal))
+        assert result.exit_code != 0
+        assert not (tmp_path / "task.yaml").is_file()
