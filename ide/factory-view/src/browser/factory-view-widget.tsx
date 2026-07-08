@@ -3,7 +3,7 @@ import { inject, injectable, postConstruct } from '@theia/core/shared/inversify'
 import { ReactWidget } from '@theia/core/lib/browser';
 import { WorkspaceService } from '@theia/workspace/lib/browser';
 import { FactoryService, FactoryState, RunSummary } from '../common/factory-protocol';
-import { SEMBL, ensureSemblDesign, gateChipStyle, tickColor, verdictTone } from './sembl-design';
+import { SEMBL, ensureSemblDesign, gateChipStyle, runningTickStyle, tickColor, verdictTone } from './sembl-design';
 
 export const FACTORY_VIEW_WIDGET_ID = 'sembl-factory-view';
 
@@ -25,6 +25,11 @@ export class FactoryViewWidget extends ReactWidget {
     protected state: FactoryState | undefined;
     protected selectedRun: RunSummary | undefined;
     protected loaded = false;
+    protected pollTimer: ReturnType<typeof setTimeout> | undefined;
+
+    // poll fast while a run is live, slow otherwise — see DESIGN-sembl-ide.md §5 step 2.
+    protected static readonly POLL_LIVE_MS = 2000;
+    protected static readonly POLL_IDLE_MS = 15000;
 
     @postConstruct()
     protected init(): void {
@@ -35,6 +40,14 @@ export class FactoryViewWidget extends ReactWidget {
         this.title.iconClass = 'fa fa-industry';
         ensureSemblDesign();
         this.bootstrap();
+    }
+
+    dispose(): void {
+        if (this.pollTimer !== undefined) {
+            clearTimeout(this.pollTimer);
+            this.pollTimer = undefined;
+        }
+        super.dispose();
     }
 
     protected async bootstrap(): Promise<void> {
@@ -62,6 +75,16 @@ export class FactoryViewWidget extends ReactWidget {
         }
         this.loaded = true;
         this.update();
+        this.schedulePoll();
+    }
+
+    protected schedulePoll(): void {
+        if (this.pollTimer !== undefined) {
+            clearTimeout(this.pollTimer);
+        }
+        const anyRunning = (this.state?.runs ?? []).some(r => r.running);
+        const delay = anyRunning ? FactoryViewWidget.POLL_LIVE_MS : FactoryViewWidget.POLL_IDLE_MS;
+        this.pollTimer = setTimeout(() => { this.refresh(); }, delay);
     }
 
     protected render(): React.ReactNode {
@@ -123,13 +146,15 @@ export class FactoryViewWidget extends ReactWidget {
                         <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: '11px' }}>none yet — run `sembl-stack loop task.yaml` in the terminal</span>}
                     {s.runs.map(r =>
                         <div key={r.id}
-                            title={`${r.id} — ${r.verdictStatus ?? r.status ?? '?'}`}
+                            title={r.running ? `${r.id} — running (${r.currentStage ?? '…'})` : `${r.id} — ${r.verdictStatus ?? r.status ?? '?'}`}
                             onClick={() => { this.selectedRun = r; this.update(); }}
                             style={{
                                 width: '6px', height: '16px', borderRadius: '1px', cursor: 'pointer',
-                                background: tickColor(r.verdictStatus ?? r.status),
-                                border: this.selectedRun?.id === r.id
-                                    ? '1.5px solid rgba(255,255,255,0.65)' : '1.5px solid transparent'
+                                ...(r.running ? runningTickStyle() : {
+                                    background: tickColor(r.verdictStatus ?? r.status),
+                                    border: this.selectedRun?.id === r.id
+                                        ? '1.5px solid rgba(255,255,255,0.65)' : '1.5px solid transparent'
+                                })
                             }} />
                     )}
                 </div>

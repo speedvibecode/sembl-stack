@@ -26,6 +26,12 @@ export interface RunSummary {
     verdictStatus?: string;
     reasons?: string[];
     attempts?: number;
+    /** true while the run is still executing (design step 2: live-run stage lighting) —
+     * manifest status is "started", or (fallback) no verdict.json yet and started recently. */
+    running?: boolean;
+    /** the registry layer key (context|spec|execute|sandbox|verify|review|merge|deploy|
+     * postdeploy) of the stage currently in progress, from events.jsonl — only set when `running`. */
+    currentStage?: string;
 }
 
 export interface FactoryState {

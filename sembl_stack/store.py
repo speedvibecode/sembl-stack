@@ -55,6 +55,22 @@ class Run:
         m.update(extra)
         self._write_manifest(m)
 
+    def append_event(self, stage: str, status: str, attempt: int = 0) -> None:
+        """Append one stage-transition line to `events.jsonl` — the IDE's live-run stage
+        lighting (docs/DESIGN-sembl-ide.md §5 step 2) tails this while a run executes.
+        One JSON object per line: `{"ts", "stage", "status", "attempt"}` where `stage` is a
+        registry layer key (context|spec|execute|sandbox|verify|review|merge|deploy|
+        postdeploy) and `status` is "start"|"done"|"failed". Recording only — never raises,
+        so a write failure here can never affect the loop or the gate."""
+        try:
+            line = json.dumps(
+                {"ts": time.time(), "stage": stage, "status": status, "attempt": attempt},
+                ensure_ascii=False)
+            with (self.dir / "events.jsonl").open("a", encoding="utf-8") as f:
+                f.write(line + "\n")
+        except Exception:
+            pass
+
     def record_attempt(self, attempt: int, **metric) -> None:
         """Append a per-attempt cost/latency record to the manifest (C1.3).
 

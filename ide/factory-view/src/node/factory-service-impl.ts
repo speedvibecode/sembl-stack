@@ -76,6 +76,44 @@ function readJson(file: string): any | undefined {
     }
 }
 
+// A run with no verdict.json yet is presumed still executing for this long after it
+// started, in case the manifest's own "started" status is ever missing/stale (defense in
+// depth — the primary signal is manifest.status, per sembl_stack/store.py new_run/set_status).
+const RUNNING_FALLBACK_WINDOW_MS = 30 * 60 * 1000;
+
+/**
+ * The registry layer key of the stage currently in progress, read from
+ * `.sembl/runs/<id>/events.jsonl` (sembl_stack/store.py Run.append_event): the last "start"
+ * event whose stage has no later matching "done"/"failed". loop.py emits stages strictly
+ * sequentially (never two open at once), so tracking a single open stage is exact. Returns
+ * undefined when the file is missing/empty/unparseable or every started stage has finished.
+ */
+function currentStageFromEvents(runDir: string): string | undefined {
+    let text: string;
+    try {
+        text = fs.readFileSync(path.join(runDir, 'events.jsonl'), 'utf-8');
+    } catch {
+        return undefined;
+    }
+    let openStage: string | undefined;
+    for (const line of text.split(/\r?\n/)) {
+        if (!line.trim()) { continue; }
+        let evt: { stage?: string; status?: string };
+        try {
+            evt = JSON.parse(line);
+        } catch {
+            continue;
+        }
+        if (!evt.stage || !evt.status) { continue; }
+        if (evt.status === 'start') {
+            openStage = evt.stage;
+        } else if ((evt.status === 'done' || evt.status === 'failed') && evt.stage === openStage) {
+            openStage = undefined;
+        }
+    }
+    return openStage;
+}
+
 @injectable()
 export class FactoryServiceImpl implements FactoryService {
 
@@ -105,7 +143,13 @@ export class FactoryServiceImpl implements FactoryService {
         for (const id of runIds) {
             const dir = path.join(runsDir, id);
             const manifest = readJson(path.join(dir, 'run.json')) || {};
-            const verdict = readJson(path.join(dir, 'verdict.json'));
+            const verdictPath = path.join(dir, 'verdict.json');
+            const hasVerdict = fs.existsSync(verdictPath);
+            const verdict = hasVerdict ? readJson(verdictPath) : undefined;
+            const createdMs = typeof manifest.created === 'number' ? manifest.created * 1000 : undefined;
+            const withinFallbackWindow = createdMs !== undefined
+                && (Date.now() - createdMs) < RUNNING_FALLBACK_WINDOW_MS;
+            const running = manifest.status === 'started' || (!hasVerdict && withinFallbackWindow);
             runs.push({
                 id,
                 status: manifest.status,
@@ -113,7 +157,9 @@ export class FactoryServiceImpl implements FactoryService {
                 task: manifest.task?.text,
                 verdictStatus: verdict?.status,
                 reasons: verdict?.reasons,
-                attempts: Array.isArray(manifest.attempts_log) ? manifest.attempts_log.length : undefined
+                attempts: Array.isArray(manifest.attempts_log) ? manifest.attempts_log.length : undefined,
+                running,
+                currentStage: running ? currentStageFromEvents(dir) : undefined
             });
         }
 

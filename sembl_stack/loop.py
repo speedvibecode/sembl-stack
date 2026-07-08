@@ -124,13 +124,16 @@ def _usage_tokens(report: dict):
     return report.get("tokens")
 
 
-def _maybe_expand(cfg: StackConfig, task: Task, bounds, tracer) -> None:
+def _maybe_expand(cfg: StackConfig, task: Task, bounds, tracer, run=None) -> None:
     """L1 context stage (in-loop): widen `bounds.editable_paths` along the coupling closure.
 
     Opt-in via `loop.expand_bounds`. This makes the running loop the fuller pipeline
     (L1→L2→L3→L4→L5) instead of only the `bounds --expand` CLI. It is a no-op — and so leaves
     the gate exactly as strict — when no context adapter is configured/available or the seed
     has no indexed files. Mutates `bounds` in place (one hop, closure-capped; EXP-05).
+
+    `run`, when given, gets "context" start/done events (live-run stage lighting) — emitted
+    only when the stage actually does something, never fabricated for a no-op skip.
     """
     if not (cfg.raw.get("loop", {}) or {}).get("expand_bounds"):
         return
@@ -140,12 +143,16 @@ def _maybe_expand(cfg: StackConfig, task: Task, bounds, tracer) -> None:
     from .contextgraph import expand_bounds as _eb
 
     opts = (cfg.raw.get("options", {}) or {}).get("context", {}) or {}
+    if run is not None:
+        run.append_event("context", "start")
     with tracer.span("L1.context"):
         g.index(task.repo)
         fg = g.file_graph(task.repo)
     bounds.editable_paths = _eb(
         list(bounds.editable_paths), fg, hops=opts.get("hops", 1),
         min_strength=opts.get("min_strength", 0), max_fraction=opts.get("max_fraction", 0.4))
+    if run is not None:
+        run.append_event("context", "done")
 
 
 # --- L4 isolation guard (defense-in-depth) -----------------------------------
@@ -208,10 +215,16 @@ def _isolation_breach(before: set[str] | None, after: set[str] | None) -> str | 
 
 def _nodes(cfg: StackConfig, task: Task, tracer, run, holder: dict | None = None):
     def plan(state: dict) -> dict:
+        run.append_event("spec", "start")
         with tracer.span("L2.plan"):
-            bounds = cfg.spec.plan(task)
+            try:
+                bounds = cfg.spec.plan(task)
+            except Exception:
+                run.append_event("spec", "failed")
+                raise
+        run.append_event("spec", "done")
         run.put(build_spec_graph(task, bounds))
-        _maybe_expand(cfg, task, bounds, tracer)   # L1: widen along the context graph
+        _maybe_expand(cfg, task, bounds, tracer, run)  # L1: widen along the context graph
         run.put(bounds)                            # persist Bounds artifact (post-expansion)
         return {"bounds": bounds}
 
@@ -220,10 +233,14 @@ def _nodes(cfg: StackConfig, task: Task, tracer, run, holder: dict | None = None
         prev = state.get("sandbox")
         if prev is not None:
             prev.close()                           # fresh cage per attempt
+        run.append_event("sandbox", "start", attempt=n)
         sandbox = cfg.sandbox.open(task.repo)
+        run.append_event("sandbox", "done", attempt=n)
         if holder is not None:
             holder["sandbox"] = sandbox            # so run() can close it on a crash
         t0 = time.perf_counter()
+        run.append_event("execute", "start", attempt=n)
+        exec_failed = False
         with tracer.span("L3.execute", attempt=n):
             try:
                 result = cfg.execute.run(task, state["bounds"], sandbox,
@@ -242,6 +259,8 @@ def _nodes(cfg: StackConfig, task: Task, tracer, run, holder: dict | None = None
                     diff=diff, workdir=getattr(sandbox, "workdir", ""),
                     report={"error": "executor-crashed", "exit_code": -1,
                             "detail": repr(exc)})
+                exec_failed = True
+        run.append_event("execute", "failed" if exec_failed else "done", attempt=n)
         latency_s = round(time.perf_counter() - t0, 3)
 
         # C1.3: record cost+latency per attempt. Latency is always measured here (wall
@@ -258,6 +277,8 @@ def _nodes(cfg: StackConfig, task: Task, tracer, run, holder: dict | None = None
         return {"sandbox": sandbox, "result": result}
 
     def verify(state: dict) -> dict:
+        attempt_n = state["attempt"] + 1
+        run.append_event("verify", "start", attempt=attempt_n)
         change = state["result"]
         exec_err = _execution_error(change)
         if exec_err is not None:
@@ -298,7 +319,8 @@ def _nodes(cfg: StackConfig, task: Task, tracer, run, holder: dict | None = None
         # Bind the verdict to the exact diff it judged (also for BLOCKs — harmless),
         # so merge/apply can later refuse a verdict issued for a different change.
         bind_verdict(verdict, getattr(change, "diff", "") or "")
-        attempt = state["attempt"] + 1
+        attempt = attempt_n
+        run.append_event("verify", "done", attempt=attempt)
         run.put(verdict, name=f"verdict-{attempt}")
         return {
             "verdict": verdict,

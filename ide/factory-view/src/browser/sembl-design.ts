@@ -58,6 +58,17 @@ export function tickColor(status?: string): string {
     }
 }
 
+/** Run-tick fill+border for a run still executing (design step 2, DESIGN-sembl-ide.md §2
+ * "run ticks"): transparent fill, 1.5px cyan border, soft-pulse — overrides the normal
+ * verdict tick color/selection border for that one tick. */
+export function runningTickStyle(): CSSProperties {
+    return {
+        background: 'transparent',
+        border: `1.5px solid ${SEMBL.cyan}`,
+        animation: 'sembl-soft-pulse 1.3s ease-in-out infinite'
+    };
+}
+
 /** Inject IBM Plex + the three sanctioned keyframes once per window. */
 export function ensureSemblDesign(): void {
     if (document.getElementById('sembl-design')) { return; }
