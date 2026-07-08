@@ -203,8 +203,19 @@ exact mistake that killed the last three surfaces. Concretely, in order:
    revise bounds, heavy override — deliberately inert until an engine-side override path
    exists, since `apply`/`merge` refuse BLOCK with no bypass (`8bc16b6`), (4) tri-state drift
    resolution: headless `drift-resolve` CLI (`4b36be5`) + drift panel restyle and buttons as
-   thin CLI invokers, exception records made check-proof (`2d2ef43`). **Next: step 5 (graph
-   view), then step 6 (discuss panel O8 + factory guide O9).**
+   thin CLI invokers, exception records made check-proof (`2d2ef43`), (5) spec-graph view —
+   React Flow over each run's persisted `specgraph.json`, drift-tinted off drift-state, zero
+   engine work needed (`126556a`), (6a) headless discuss task parse, O8 use #2 —
+   `sembl_stack/discuss.py` + `discuss` CLI (`55d9b5c`), (6b) discuss panel: spec-planning
+   side chat + `discuss-confirm` seam; human edits pass the same candidate filter as model
+   output (`64fd5f5`), (6c) headless factory guide, O9 — `sembl_stack/factory_guide.py` +
+   `explain` CLI, read-only/Haiku-default, imported only by cli.py (`79b692d`), (6d) guide
+   panel + strip entry, suggestions copy-only (`c91e719`). A usability pass also landed
+   between 6a and 6b: dark theme default, factory view as the main-area home with view
+   discoverability buttons, guided empty state (`cb0f46b`). **All §5 build-order steps are
+   done.** Next candidates (owner to sequence): CLI event wiring for review/merge/deploy/
+   postdeploy stage lighting, engine-side BLOCK-override machinery (the inert button's
+   missing half), MurphyScan sidebar destination, S13 SDK-adapter class.
 
 ## 6. Open questions — not yet resolved by this doc
 
