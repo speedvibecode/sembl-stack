@@ -196,6 +196,15 @@ exact mistake that killed the last three surfaces. Concretely, in order:
    directed one-click launch (desktop shortcut → backend + app-mode window; scripts staged
    in `ide/scripts/launch.ps1`/`launch.vbs`, production build script `build:prod` added) —
    finish and verify it alongside step 1.
+5. **Build-order status (2026-07-08, each step Sonnet-executed to a pinned spec, lead-reviewed
+   and independently re-verified live before commit):** steps 1–4 ✅ — (1) tokens + restyle +
+   factory strip + one-click launch (`b28198e`), (2) live-run stage lighting off
+   `events.jsonl`/run status (`e36fb3f`), (3) BLOCK action row: re-run (spawns a real loop),
+   revise bounds, heavy override — deliberately inert until an engine-side override path
+   exists, since `apply`/`merge` refuse BLOCK with no bypass (`8bc16b6`), (4) tri-state drift
+   resolution: headless `drift-resolve` CLI (`4b36be5`) + drift panel restyle and buttons as
+   thin CLI invokers, exception records made check-proof (`2d2ef43`). **Next: step 5 (graph
+   view), then step 6 (discuss panel O8 + factory guide O9).**
 
 ## 6. Open questions — not yet resolved by this doc
 
