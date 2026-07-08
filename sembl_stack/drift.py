@@ -133,6 +133,49 @@ def pending_drift(*, state_path: str | Path = DEFAULT_STATE_PATH) -> list[dict]:
     return [e["finding"] for e in state["findings"].values() if not e.get("acknowledged")]
 
 
+def pending_drift_items(*, state_path: str | Path = DEFAULT_STATE_PATH) -> list[tuple[str, dict]]:
+    """Same as `pending_drift`, but paired with each finding's stable key.
+
+    The order matches `pending_drift` exactly (both walk `state["findings"]` insertion
+    order), so 1-based positions here are the same positions `drift-review` numbers —
+    this is what lets `drift-resolve <index>` and `drift-review`'s printed `N.` agree.
+    """
+    state = _load_state(Path(state_path))
+    return [(key, e["finding"]) for key, e in state["findings"].items()
+            if not e.get("acknowledged")]
+
+
+def entry_for_key(key: str, *, state_path: str | Path = DEFAULT_STATE_PATH) -> dict | None:
+    """Read-only: the raw state entry for `key` (finding/first_detected/last_seen/
+    acknowledged/exception), or None if `key` isn't in the state file."""
+    state = _load_state(Path(state_path))
+    return state["findings"].get(key)
+
+
+def resolve_exception(key: str, reason: str, *,
+                       state_path: str | Path = DEFAULT_STATE_PATH) -> bool:
+    """Track 5 item 4 — a human-issued permanent exception for one finding.
+
+    Sets `acknowledged: true` plus an `exception` record (reason + decision timestamp)
+    on the finding's state entry. Additive to the schema — does not bump
+    STATE_SCHEMA_VERSION, existing readers of `acknowledged` keep working unchanged.
+    Returns False (no-op, no error) if `key` isn't in the current state; never raises
+    on a bad state file, same degrade-to-empty behavior as `_load_state`.
+    """
+    path = Path(state_path)
+    state = _load_state(path)
+    entry = state["findings"].get(key)
+    if entry is None:
+        return False
+    entry["acknowledged"] = True
+    entry["exception"] = {
+        "reason": reason,
+        "decided_at": datetime.now(timezone.utc).isoformat(),
+    }
+    _save_state(path, state)
+    return True
+
+
 def acknowledge_drift(keys: list[str] | None = None, *,
                        state_path: str | Path = DEFAULT_STATE_PATH) -> int:
     """Mark pending findings as reviewed (a batched review checkpoint).

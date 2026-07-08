@@ -16,8 +16,10 @@ custom step between two stages (read the upstream artifact, write the downstream
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import subprocess
+from datetime import datetime, timezone
 from pathlib import Path
 
 import click
@@ -332,11 +334,104 @@ def drift_review(state_path, ack):
     if not pending:
         click.echo("no pending drift")
         return
-    for finding in pending:
-        click.echo(f"- [{finding.get('kind')}] {finding.get('message')}")
+    for n, finding in enumerate(pending, start=1):
+        click.echo(f"{n}. [{finding.get('kind')}] {finding.get('message')}")
     if ack:
         n = drift.acknowledge_drift(state_path=state_path)
         click.echo(f"acknowledged {n} finding(s)", err=True)
+
+
+def _resolve_drift_key(key: str, state_path: str) -> str:
+    """KEY is either a full `finding_key()` string or a 1-based index into the same
+    ordering `drift-review` numbers (`drift.pending_drift_items`). Errors loudly rather
+    than silently picking the wrong finding."""
+    items = drift.pending_drift_items(state_path=state_path)
+    if key.isdigit():
+        idx = int(key)
+        if idx < 1 or idx > len(items):
+            raise click.UsageError(
+                f"index {idx} out of range — {len(items)} pending finding(s) (state: {state_path})")
+        return items[idx - 1][0]
+    if any(k == key for k, _ in items):
+        return key
+    raise click.UsageError(
+        f"unknown finding key {key!r} — {len(items)} pending finding(s) (state: {state_path})")
+
+
+@main.command(name="drift-resolve")
+@click.argument("key")
+@click.option("--state", "state_path", default=drift.DEFAULT_STATE_PATH,
+              help="Drift state file to read/write (default .sembl/drift-state.json).")
+@click.option("--mark-exception", is_flag=True,
+              help="Record a permanent, human-issued exception for this finding.")
+@click.option("--reason", default=None, help="Required with --mark-exception.")
+@click.option("--update-code", is_flag=True,
+              help="Seed a loop task file to reconcile the code with the spec.")
+@click.option("--update-spec", is_flag=True,
+              help="Print the finding for manual spec-source editing (v1: no LLM, O8).")
+def drift_resolve(key, state_path, mark_exception, reason, update_code, update_spec):
+    """Track 5 item 4: resolve one pending drift finding, tri-state.
+
+    KEY is either a full finding key (the `finding_key()` string, as persisted in
+    drift-state.json) or the 1-based index `drift-review` prints for the same finding.
+    Exactly one mode is required:
+
+      --mark-exception --reason TEXT   Record a permanent exception in drift-state.json.
+        This is a genuine, human-issued decision, recorded permanently there — NOT via
+        CBM's manage_adr (that tool replaces a whole-project doc wholesale; see this
+        module's docstring in drift.py for why it's the wrong fit for a per-finding log).
+
+      --update-code   Seed `.sembl/drift-tasks/<ts>-<hash>.yaml` for the existing loop
+        to reconcile code with spec, and print the `sembl-stack loop <path>` command to
+        run it. Does NOT run the loop and does NOT acknowledge the finding — resolution
+        happens naturally when the next `drift-check` no longer sees the drift.
+
+      --update-spec   v1 is deliberately non-LLM (O8: only three sanctioned LLM-in-the-
+        loop uses exist; a fourth needs a ledger diff, not a silent addition here).
+        Prints the finding for a human to edit the spec source by hand. Acknowledges
+        nothing.
+    """
+    modes = [m for m in (mark_exception, update_code, update_spec) if m]
+    if len(modes) != 1:
+        raise click.UsageError(
+            "exactly one of --mark-exception, --update-code, --update-spec is required")
+
+    resolved_key = _resolve_drift_key(key, state_path)
+
+    if mark_exception:
+        if not reason:
+            raise click.UsageError("--reason TEXT is required with --mark-exception")
+        drift.resolve_exception(resolved_key, reason, state_path=state_path)
+        click.echo(f"exception recorded for {resolved_key!r}: {reason}")
+        return
+
+    entry = drift.entry_for_key(resolved_key, state_path=state_path)
+    finding = entry["finding"]
+
+    if update_code:
+        ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        short_hash = hashlib.sha1(resolved_key.encode("utf-8")).hexdigest()[:8]
+        task_path = Path(".sembl") / "drift-tasks" / f"{ts}-{short_hash}.yaml"
+        task_path.parent.mkdir(parents=True, exist_ok=True)
+        task_text = (
+            f"reconcile code with spec for drift finding "
+            f"[{finding.get('kind')}] {finding.get('spec_node')}: {finding.get('message')!r}"
+        )
+        task_data = {"text": task_text, "repo": "."}
+        task_path.write_text(yaml.safe_dump(task_data, sort_keys=False), encoding="utf-8")
+        click.echo(f"wrote task -> {task_path}")
+        click.echo(f"run:  sembl-stack loop {task_path}")
+        click.echo(
+            "not acknowledged — this resolves itself when the drift disappears at the "
+            "next drift-check.")
+        return
+
+    # --update-spec
+    click.echo(f"kind:           {finding.get('kind')}")
+    click.echo(f"spec_node:      {finding.get('spec_node')}")
+    click.echo(f"message:        {finding.get('message')}")
+    click.echo(f"first_detected: {entry.get('first_detected')}")
+    click.echo("edit the spec source manually to reconcile this — nothing acknowledged.")
 
 
 @main.command()
