@@ -2,7 +2,7 @@ import { injectable } from '@theia/core/shared/inversify';
 import * as fs from 'fs';
 import * as path from 'path';
 import { spawnSync } from 'child_process';
-import { DriftPendingEntry, DriftResolveMode, DriftService } from '../common/drift-protocol';
+import { DriftPendingEntry, DriftResolveMode, DriftService, SpecEdge, SpecGraphResult, SpecNode } from '../common/drift-protocol';
 
 interface DriftStateFile {
     findings?: {
@@ -10,6 +10,7 @@ interface DriftStateFile {
             finding: DriftPendingEntry['finding'];
             first_detected?: string;
             acknowledged?: boolean;
+            exception?: unknown;
         };
     };
 }
@@ -89,5 +90,49 @@ export class DriftServiceImpl implements DriftService {
         const output = [proc.stdout, proc.stderr].filter(Boolean).join('').trim();
         const ok = proc.status === 0;
         return { ok, output };
+    }
+
+    async getSpecGraph(repoPath: string): Promise<SpecGraphResult | undefined> {
+        const runsDir = path.join(repoPath, '.sembl', 'runs');
+        let runIds: string[];
+        try {
+            runIds = fs.readdirSync(runsDir, { withFileTypes: true })
+                .filter(d => d.isDirectory())
+                .map(d => d.name)
+                .sort();
+        } catch {
+            return undefined;
+        }
+        for (let i = runIds.length - 1; i >= 0; i--) {
+            const runId = runIds[i];
+            const graphPath = path.join(runsDir, runId, 'specgraph.json');
+            if (!fs.existsSync(graphPath)) { continue; }
+            try {
+                const raw = JSON.parse(fs.readFileSync(graphPath, 'utf-8'));
+                const nodes: SpecNode[] = Array.isArray(raw.nodes) ? raw.nodes : [];
+                const edges: SpecEdge[] = Array.isArray(raw.edges) ? raw.edges : [];
+                return { runId, nodes, edges };
+            } catch {
+                continue;
+            }
+        }
+        return undefined;
+    }
+
+    async getExceptedNodes(repoPath: string): Promise<string[]> {
+        const statePath = path.join(repoPath, '.sembl', 'drift-state.json');
+        let data: DriftStateFile;
+        try {
+            data = JSON.parse(fs.readFileSync(statePath, 'utf-8'));
+        } catch {
+            return [];
+        }
+        const nodeIds: string[] = [];
+        for (const entry of Object.values(data.findings || {})) {
+            if (entry.acknowledged && entry.exception && entry.finding?.spec_node) {
+                nodeIds.push(entry.finding.spec_node);
+            }
+        }
+        return nodeIds;
     }
 }

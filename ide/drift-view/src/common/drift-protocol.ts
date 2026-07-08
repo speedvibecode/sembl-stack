@@ -22,6 +22,29 @@ export interface DriftPendingEntry {
 
 export type DriftResolveMode = 'update-spec' | 'update-code' | 'mark-exception';
 
+// SpecGraph mirrors sembl_stack/specgraph.py's node/edge shape 1:1 (design step 5 —
+// the graph view). Nodes carry a `type` (task/source/route/entity/data_rule/
+// editable_path/forbidden_area); edges carry a `type` rel string (declares/mentions/
+// allows/forbids observed in real specgraph.json output).
+export interface SpecNode {
+    id: string;
+    type: string;
+    name: string;
+    [key: string]: unknown;
+}
+
+export interface SpecEdge {
+    from: string;
+    to: string;
+    type: string;
+}
+
+export interface SpecGraphResult {
+    runId: string;
+    nodes: SpecNode[];
+    edges: SpecEdge[];
+}
+
 export interface DriftService {
     /** Read `<repoPath>/.sembl/drift-state.json` and return every unacknowledged finding,
      * paired with its stable state key. */
@@ -31,4 +54,14 @@ export interface DriftService {
      * (the headless CLI is the single source of truth for what each mode does — this is a
      * thin invoker, per O1). `reason` is required when `mode` is 'mark-exception'. */
     resolve(repoPath: string, key: string, mode: DriftResolveMode, reason?: string): Promise<{ ok: boolean; output: string }>;
+
+    /** Design step 5: scan `<repoPath>/.sembl/runs/*` for the lexicographically-last run
+     * dir containing a `specgraph.json` and return its parsed nodes/edges. Undefined when
+     * no run has ever persisted a specgraph. No caching — always reads fresh off disk. */
+    getSpecGraph(repoPath: string): Promise<SpecGraphResult | undefined>;
+
+    /** Node ids that carry a recorded, acknowledged exception (drift.py's
+     * `resolve_exception` — `acknowledged: true` plus an `exception` record) — rendered
+     * as "exception" (dim amber) rather than "drift" (amber) in the graph view. */
+    getExceptedNodes(repoPath: string): Promise<string[]>;
 }
