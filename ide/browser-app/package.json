@@ -36,7 +36,10 @@
     "target": "browser",
     "frontend": {
       "config": {
-        "applicationName": "Sembl Factory IDE"
+        "applicationName": "Sembl Factory IDE",
+        "preferences": {
+          "workbench.colorTheme": "dark"
+        }
       }
     }
   },

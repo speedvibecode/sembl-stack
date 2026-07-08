@@ -1,6 +1,7 @@
 import * as React from 'react';
 import { inject, injectable, postConstruct } from '@theia/core/shared/inversify';
 import { OpenerService, ReactWidget, open } from '@theia/core/lib/browser';
+import { CommandService } from '@theia/core/lib/common';
 import { MessageService } from '@theia/core/lib/common/message-service';
 import URI from '@theia/core/lib/common/uri';
 import { URI as CodeUri } from '@theia/core/shared/vscode-uri';
@@ -11,10 +12,11 @@ import { SEMBL, ensureSemblDesign, gateChipStyle, runningTickStyle, tickColor, v
 
 export const FACTORY_VIEW_WIDGET_ID = 'sembl-factory-view';
 
-// The factory cockpit panel (bottom area): the pipeline adapters (straight from
-// sembl.stack.yaml) + the run-history ribbon over .sembl/runs/. Read-only in this
-// slice — swapping still happens by editing the yaml (one click away in the
-// editor); resolution/relaunch actions are later work. Styled per the locked
+// The factory cockpit — the main-area home surface: the pipeline adapters (straight
+// from sembl.stack.yaml) + the run-history ribbon over .sembl/runs/ + the selected
+// run's verdict. Also the jump-off point to the other sembl views (drift, spec
+// graph) so none of them hide behind the command palette. Swapping adapters still
+// happens by editing the yaml (one click away in the editor). Styled per the locked
 // design system (docs/DESIGN-sembl-ide.md).
 @injectable()
 export class FactoryViewWidget extends ReactWidget {
@@ -27,6 +29,7 @@ export class FactoryViewWidget extends ReactWidget {
     @inject(OpenerService) protected readonly openerService: OpenerService;
     @inject(MessageService) protected readonly messageService: MessageService;
     @inject(FileService) protected readonly fileService: FileService;
+    @inject(CommandService) protected readonly commands: CommandService;
 
     protected repoPath = '';
     protected state: FactoryState | undefined;
@@ -157,29 +160,61 @@ export class FactoryViewWidget extends ReactWidget {
         );
     }
 
+    /** Toggle a sibling sembl view by command id — warn instead of throwing if absent. */
+    protected async toggleView(commandId: string): Promise<void> {
+        try {
+            await this.commands.executeCommand(commandId);
+        } catch {
+            this.messageService.warn(`that view is not available in this build (${commandId})`);
+        }
+    }
+
+    protected headerButtonStyle(): React.CSSProperties {
+        return {
+            fontFamily: SEMBL.sans, fontSize: '11px', padding: '5px 12px', borderRadius: '4px',
+            border: '1px solid rgba(255,255,255,0.14)', background: 'transparent',
+            color: 'rgba(255,255,255,0.65)', cursor: 'pointer'
+        };
+    }
+
+    protected sectionLabelStyle(): React.CSSProperties {
+        return {
+            fontSize: '10px', letterSpacing: '0.08em', textTransform: 'uppercase',
+            color: 'rgba(255,255,255,0.3)', marginBottom: '8px'
+        };
+    }
+
     protected render(): React.ReactNode {
         const s = this.state;
         return <div style={{
-            padding: '12px 16px', fontFamily: SEMBL.mono, fontSize: '12px',
-            height: '100%', overflow: 'auto', background: SEMBL.panel,
+            fontFamily: SEMBL.mono, fontSize: '12px',
+            height: '100%', overflow: 'auto', background: SEMBL.editor,
             color: 'rgba(255,255,255,0.72)'
         }}>
-            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '12px' }}>
+            <div style={{ maxWidth: '960px', margin: '0 auto', padding: '26px 32px 48px' }}>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '18px' }}>
+                <span style={{
+                    fontFamily: SEMBL.sans, fontSize: '13px', fontWeight: 600,
+                    letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.85)'
+                }}>sembl factory</span>
+                <div style={{ flex: 1 }} />
+                <button onClick={() => this.toggleView('sembl.drift.toggle')}
+                    title="spec↔code drift findings and resolution" style={this.headerButtonStyle()}>drift</button>
+                <button onClick={() => this.toggleView('sembl.graph.toggle')}
+                    title="the run's spec graph, drift-tinted" style={this.headerButtonStyle()}>spec graph</button>
+                <button onClick={() => this.refresh()} style={this.headerButtonStyle()}>refresh</button>
+            </div>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '22px' }}>
                 <span style={{ fontSize: '10px', letterSpacing: '0.08em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.3)' }}>repo</span>
                 <input
                     style={{
                         flex: 1, fontFamily: SEMBL.mono, fontSize: '11px',
-                        background: SEMBL.editor, color: 'rgba(255,255,255,0.72)',
+                        background: SEMBL.panel, color: 'rgba(255,255,255,0.72)',
                         border: SEMBL.border, borderRadius: '4px', padding: '4px 8px', outline: 'none'
                     }}
                     value={this.repoPath}
                     onChange={e => { this.repoPath = e.target.value; this.update(); }}
                 />
-                <button onClick={() => this.refresh()} style={{
-                    fontFamily: SEMBL.sans, fontSize: '11px', padding: '5px 12px', borderRadius: '4px',
-                    border: '1px solid rgba(255,255,255,0.14)', background: 'transparent',
-                    color: 'rgba(255,255,255,0.65)', cursor: 'pointer'
-                }}>refresh</button>
             </div>
 
             {!this.loaded && <p style={{ color: 'rgba(255,255,255,0.4)' }}>loading…</p>}
@@ -188,7 +223,8 @@ export class FactoryViewWidget extends ReactWidget {
 
             {s && <div>
                 {/* pipeline adapters */}
-                <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginBottom: '12px' }}>
+                <div style={this.sectionLabelStyle()}>pipeline — sembl.stack.yaml</div>
+                <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginBottom: '22px' }}>
                     {s.layers.map(l => {
                         const isGate = l.key === 'verify' || l.key === 'postdeploy';
                         return <div key={l.key} title={l.fromConfig
@@ -208,18 +244,32 @@ export class FactoryViewWidget extends ReactWidget {
                 </div>
 
                 {/* run-history ribbon */}
-                <div style={{ display: 'flex', gap: '3px', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: '10px', letterSpacing: '0.08em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.3)', marginRight: '8px' }}>
-                        runs ({s.runs.length})
-                    </span>
-                    {s.runs.length === 0 &&
-                        <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: '11px' }}>none yet — run `sembl-stack loop task.yaml` in the terminal</span>}
+                <div style={this.sectionLabelStyle()}>runs ({s.runs.length})</div>
+                {s.runs.length === 0 &&
+                    <div style={{
+                        padding: '20px 22px', background: SEMBL.card,
+                        border: SEMBL.borderStrong, borderRadius: '8px', maxWidth: '620px'
+                    }}>
+                        <div style={{
+                            fontFamily: SEMBL.sans, fontSize: '13px', fontWeight: 600,
+                            color: 'rgba(255,255,255,0.85)', marginBottom: '10px'
+                        }}>no runs yet — the loop hasn't been run in this repo</div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '12px', lineHeight: 1.6 }}>
+                            <div><span style={{ color: SEMBL.cyan }}>1</span>&nbsp;&nbsp;describe the task and its bounds in <span style={{ color: 'rgba(255,255,255,0.85)' }}>task.yaml</span> at the repo root</div>
+                            <div><span style={{ color: SEMBL.cyan }}>2</span>&nbsp;&nbsp;run <span style={{
+                                color: 'rgba(255,255,255,0.85)', background: SEMBL.editor,
+                                border: SEMBL.border, borderRadius: '3px', padding: '1px 6px'
+                            }}>sembl-stack loop task.yaml</span> in the terminal</div>
+                            <div><span style={{ color: SEMBL.cyan }}>3</span>&nbsp;&nbsp;the gate verdict lands here — PASS merges, BLOCK stays blocked</div>
+                        </div>
+                    </div>}
+                <div style={{ display: 'flex', gap: '4px', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap' }}>
                     {s.runs.map(r =>
                         <div key={r.id}
                             title={r.running ? `${r.id} — running (${r.currentStage ?? '…'})` : `${r.id} — ${r.verdictStatus ?? r.status ?? '?'}`}
                             onClick={() => this.selectRun(r)}
                             style={{
-                                width: '6px', height: '16px', borderRadius: '1px', cursor: 'pointer',
+                                width: '9px', height: '20px', borderRadius: '2px', cursor: 'pointer',
                                 ...(r.running ? runningTickStyle() : {
                                     background: tickColor(r.verdictStatus ?? r.status),
                                     border: this.selectedRun?.id === r.id
@@ -297,6 +347,7 @@ export class FactoryViewWidget extends ReactWidget {
                         </div>}
                 </div>}
             </div>}
+            </div>
         </div>;
     }
 }

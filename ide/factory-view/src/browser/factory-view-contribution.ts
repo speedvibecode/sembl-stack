@@ -23,14 +23,35 @@ export class FactoryViewContribution extends AbstractViewContribution<FactoryVie
         super({
             widgetId: FactoryViewWidget.ID,
             widgetName: FactoryViewWidget.LABEL,
-            defaultWidgetOptions: { area: 'bottom', rank: 200 },
+            // The factory view IS the product surface — it opens as the main-area home,
+            // not a bottom drawer (usability pass, DESIGN-sembl-ide.md §2).
+            defaultWidgetOptions: { area: 'main' },
             toggleCommandId: FactoryViewCommand.id
         });
     }
 
-    /** Only runs when there is no restored layout — opens the panel on a fresh workspace. */
+    /** Only runs when there is no restored layout — opens the home on a fresh workspace. */
     async initializeLayout(app: FrontendApplication): Promise<void> {
-        await this.openView({ activate: false, reveal: true });
+        await this.openView({ activate: true, reveal: true });
+    }
+
+    /**
+     * Layouts saved before the bottom→main move keep the factory view buried in the
+     * bottom drawer forever (initializeLayout never re-runs on a restored layout).
+     * Migrate once per workspace; after that the user's own placement wins.
+     */
+    protected async migrateLayout(app: FrontendApplication): Promise<void> {
+        const roots = await this.workspaceService.roots;
+        const key = `sembl-layout-v2:${roots[0]?.resource.toString() ?? ''}`;
+        if (window.localStorage.getItem(key)) { return; }
+        window.localStorage.setItem(key, '1');
+        const existing = app.shell.widgets.find(w => w.id === FactoryViewWidget.ID);
+        if (existing && app.shell.getAreaFor(existing) !== 'main') {
+            existing.close();
+        }
+        if (!existing || app.shell.getAreaFor(existing) !== 'main') {
+            await this.openView({ activate: true, reveal: true });
+        }
     }
 
     async onStart(app: FrontendApplication): Promise<void> {
@@ -39,6 +60,11 @@ export class FactoryViewContribution extends AbstractViewContribution<FactoryVie
 
     /** Runs after the shell is attached — adding widgets from onStart would block startup. */
     async onDidInitializeLayout(app: FrontendApplication): Promise<void> {
+        try {
+            await this.migrateLayout(app);
+        } catch (e) {
+            console.warn('sembl: layout migration failed', e);
+        }
         try {
             // The always-visible factory strip (design step 1). It lives in its own
             // host div ABOVE the application shell (shell offset via CSS) — the
