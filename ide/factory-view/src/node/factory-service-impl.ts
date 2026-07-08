@@ -1,7 +1,8 @@
 import { injectable } from '@theia/core/shared/inversify';
 import * as fs from 'fs';
 import * as path from 'path';
-import { FactoryService, FactoryState, PipelineLayer, RunSummary } from '../common/factory-protocol';
+import { spawn } from 'child_process';
+import { FactoryService, FactoryState, PipelineLayer, RerunResult, RunSummary } from '../common/factory-protocol';
 
 // Mirrors sembl_stack/config.py DEFAULTS["layers"] — the resolution rule is
 // defaults < sembl.stack.yaml, same as the CLI. Keep this table in sync with config.py.
@@ -114,6 +115,52 @@ function currentStageFromEvents(runDir: string): string | undefined {
     return openStage;
 }
 
+// Dev-machine fallback only — tried last, after the target repo's own venv and this
+// sembl-stack checkout's venv (found by walking up from __dirname, below). Keeps the
+// resolution from being pinned to this machine as the *only* option.
+const KNOWN_DEV_SEMBL_STACK_VENV_PYTHON =
+    'C:/Users/totla/Desktop/projects/sembl-stack/.venv/Scripts/python.exe';
+
+/**
+ * Resolve a python executable to invoke `sembl_stack.cli` with, for the BLOCK-panel
+ * "re-run" action. Preference order: the target repo's own venv (it may vendor its own
+ * sembl-stack install) > this sembl-stack checkout's venv (walk up from this module's own
+ * location so it isn't hardcoded to one machine) > a known dev-machine fallback > `python`
+ * on PATH. First that exists wins.
+ */
+function resolvePythonExecutable(repoPath: string): string {
+    const repoVenv = path.join(repoPath, '.venv', 'Scripts', 'python.exe');
+    if (fs.existsSync(repoVenv)) {
+        return repoVenv;
+    }
+    let dir = __dirname;
+    for (let i = 0; i < 12; i++) {
+        const candidate = path.join(dir, '.venv', 'Scripts', 'python.exe');
+        if (fs.existsSync(candidate) && fs.existsSync(path.join(dir, 'sembl_stack'))) {
+            return candidate;
+        }
+        const parent = path.dirname(dir);
+        if (parent === dir) { break; }
+        dir = parent;
+    }
+    if (fs.existsSync(KNOWN_DEV_SEMBL_STACK_VENV_PYTHON)) {
+        return KNOWN_DEV_SEMBL_STACK_VENV_PYTHON;
+    }
+    return 'python';
+}
+
+/**
+ * Resolve the taskfile for a re-run of `<repoPath>`. `run.json` (sembl_stack/store.py
+ * RunStore.new_run) only ever records task.text/task.repo, never the file the task was
+ * loaded from — there is nothing to read back per-run. The one convention every task file
+ * actually follows is a `task.yaml` at the repo root; use it if present, else refuse
+ * rather than guess at a path.
+ */
+function resolveTaskFile(repoPath: string): string | undefined {
+    const candidate = path.join(repoPath, 'task.yaml');
+    return fs.existsSync(candidate) ? candidate : undefined;
+}
+
 @injectable()
 export class FactoryServiceImpl implements FactoryService {
 
@@ -167,6 +214,48 @@ export class FactoryServiceImpl implements FactoryService {
             configPath: fs.existsSync(configPath) ? configPath : undefined,
             layers,
             runs
+        };
+    }
+
+    async rerunTask(repoPath: string): Promise<RerunResult> {
+        const repo = normalizeRepoPath(repoPath);
+        const taskFile = resolveTaskFile(repo);
+        if (!taskFile) {
+            return {
+                ok: false,
+                message: `no taskfile to re-run — expected ${path.join(repo, 'task.yaml')}`
+            };
+        }
+
+        const python = resolvePythonExecutable(repo);
+        const logPath = path.join(repo, '.sembl', 'ide-rerun.log');
+        let logFd: number | undefined;
+        try {
+            fs.mkdirSync(path.dirname(logPath), { recursive: true });
+            logFd = fs.openSync(logPath, 'a');
+        } catch {
+            // .sembl not creatable (not a sembl repo, or a permissions issue) — spawn still
+            // proceeds with stdio ignored below; the child's own error, if any, is lost, but
+            // that's no worse than not spawning at all.
+        }
+
+        try {
+            // Fire-and-forget by design (per the spec): this RPC must not block on the
+            // child. detached + unref lets the loop outlive this backend request/response.
+            const child = spawn(python, ['-m', 'sembl_stack.cli', 'loop', taskFile], {
+                cwd: repo,
+                detached: true,
+                stdio: ['ignore', logFd ?? 'ignore', logFd ?? 'ignore']
+            });
+            child.unref();
+        } catch (e) {
+            return { ok: false, message: `failed to spawn re-run: ${e}` };
+        }
+
+        return {
+            ok: true,
+            message: `re-run spawned: ${python} -m sembl_stack.cli loop ${taskFile}`
+                + (logFd !== undefined ? ` (log: ${logPath})` : '')
         };
     }
 }

@@ -42,7 +42,20 @@ export interface FactoryState {
     runs: RunSummary[];
 }
 
+export interface RerunResult {
+    ok: boolean;
+    message: string;
+}
+
 export interface FactoryService {
     /** Read `<repoPath>/sembl.stack.yaml` + `<repoPath>/.sembl/runs/` and return the rendered state. */
     getState(repoPath: string): Promise<FactoryState>;
+
+    /**
+     * BLOCK-panel "re-run": spawn a fresh `sembl-stack loop <taskfile>` against the repo
+     * (fire-and-forget — this RPC does not await the child). Thin wrapper per O1: no loop
+     * logic here, only process spawn + taskfile resolution. See factory-service-impl.ts for
+     * the taskfile/python resolution rules.
+     */
+    rerunTask(repoPath: string): Promise<RerunResult>;
 }
