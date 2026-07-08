@@ -165,7 +165,17 @@ artifact-in/diff-out; CLI agents are class 1; class 2 = SDK-based adapters (Clau
 first: structured events for live-run rendering, in-flight bounds enforcement via permission
 hooks as *efficiency only* — the post-hoc deterministic gate remains the judgment, cost/token
 telemetry into the run record); ACP a candidate class 3. Swapping remains a config-level act
-(`sembl.stack.yaml`); never hot-swapped mid-run. See `DESIGN-sembl-ide.md` §4.
+(`sembl.stack.yaml`); never hot-swapped mid-run. See `DESIGN-sembl-ide.md` §4. · **O10
+[LOCKED 2026-07-08] the surface is a VS Code OSS fork, extension-first** — owner decision
+after the Theia slice joined the TUI and chat shell as a shell that under-delivered while the
+engine signal held: the shell IS the delight, so we take the one people already love (Cursor's
+path) instead of owning a shell's shortcomings. Product definition, golden path, delight bar,
+non-goals, and P1(extension in stock VS Code)→P2(fork)→P3(distribution) build order are locked
+in `docs/PRODUCT-sembl-ide.md`; the identity is "the IDE for spec-anchored development" —
+strip + per-layer executor pickers + discuss + gate verdicts, never editor features. All
+surfaces remain thin renderers (O1 unchanged); every prior surface lock (O3/O8/O9,
+BLOCK-means-blocked) carries over verbatim. The Theia slice is retired to reference status
+once P1 reaches parity.
 
 ## 6. North Star — recursive PROCESS self-improvement
 The process improves itself **because of the tools of the process**, not because any model gets
