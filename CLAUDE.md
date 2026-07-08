@@ -18,11 +18,15 @@ do not rebuild or re-test it).
 
 ## Read order (before any non-trivial change)
 
-1. `docs/PROCESS-ACTION-PLAN.md` — the single source of truth: architecture,
-   stage map + status, locked-decision ledger (O1–O8, S1–S12), the action plan.
-2. `docs/SPEC-theia-factory-ide.md` — the locked target surface; **§5 is the
-   maintained build-order/status section — trust it over any other doc.**
-3. `docs/HANDOFF-theia-ide.md` — how to build/run the Theia IDE slice.
+1. `docs/PRODUCT-sembl-ide.md` (v2, 2026-07-09) — **the product contract**: what
+   sembl IDE is (conversation/truth/stage, preview-as-evidence, seats table,
+   target profiles incl. smart contracts), the delight bar, non-goals, and the
+   value-ranked roadmap. Every build step executes against this doc.
+2. `docs/PROCESS-ACTION-PLAN.md` — architecture, stage map + status, the
+   locked-decision ledger (O1–O15, S1–S13), the action plan.
+3. Theia docs (`SPEC-theia-factory-ide.md`, `HANDOFF-theia-ide.md`) are
+   **historical reference only** — the Theia slice is retired (O10); do not
+   build on it. `vscode-ext/` holds the parked P1 extension scaffold.
 
 Status lines in docs go stale. **Re-verify against the repo and git log before
 trusting any "done" claim.**
@@ -34,13 +38,14 @@ trusting any "done" claim.**
   in a surface. If a Theia service does more than read state off disk, stop.
 - **O3** — nothing judges code quality as the headline. Quality is measured only
   as gate-caught regressions. LLM touch points never sit inside L5/L8.
-- **O8** — bounded-LLM-into-fixed-schema is the ONLY sanctioned LLM-in-the-loop
-  pattern: LLM proposes into a fixed schema it cannot extend, a human confirms,
-  it never touches the gate. Currently three uses (`ai_suggest_paths`, the
-  discuss-panel task parse, L0.5 ideation). Do not add a fourth silently.
+- **O8 / O9 / O11** — exactly three LLM patterns exist, ever: O8
+  bounded-LLM-into-fixed-schema (ai_suggest_paths, discuss parse, L0.5
+  ideation), O9 the read-only factory guide, O11 the operator agent (free
+  conversation, commits ONLY through typed engine tools, owns zero judgment).
+  None touches the gate. Do not add a fourth silently.
 - **Anti-trap build order** — prove signal headless on the one flagship before
-  building chrome. Three surfaces died to chrome-before-signal (Textual wizard →
-  chat shell → dashboard). SPEC-theia §5 sequencing is not optional.
+  building chrome. Three shells died (Textual TUI → chat shell → Theia).
+  The PRODUCT doc's roadmap order is not optional; chrome never outruns signal.
 - **BLOCK means blocked** — a BLOCK verdict is never applied or merged; overrides
   are recorded permanently. Verdicts are bound to the diff SHA they judged.
 
