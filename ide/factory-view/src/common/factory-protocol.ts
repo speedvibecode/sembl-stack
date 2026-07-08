@@ -67,6 +67,24 @@ export interface DiscussConfirmResult {
     message: string;
 }
 
+// The guide panel's O9 use (bounded-LLM-into-fixed-schema, the operating-advisor
+// pattern — distinct from discuss's O8 use #2): a plain-English question about
+// factory state -> this fixed {answer, suggestions, fallback} shape. Strictly
+// read-only — a suggestion is a command string the human may copy, never
+// something this panel (or anything behind it) executes.
+export interface GuideSuggestion {
+    command: string;
+    why: string;
+}
+
+export interface GuideReply {
+    answer: string;
+    suggestions: GuideSuggestion[];
+    /** true when the engine call failed/timed out/came back unparseable — the
+     * panel must show the "guide unavailable" fallback rather than a real answer. */
+    fallback: boolean;
+}
+
 export interface FactoryService {
     /** Read `<repoPath>/sembl.stack.yaml` + `<repoPath>/.sembl/runs/` and return the rendered state. */
     getState(repoPath: string): Promise<FactoryState>;
@@ -92,4 +110,12 @@ export interface FactoryService {
      * tool-owned writer every other entry point uses.
      */
     discussConfirm(repoPath: string, proposal: DiscussProposal): Promise<DiscussConfirmResult>;
+
+    /**
+     * Guide panel — ask step: `sembl_stack.cli explain <question> --json` (O9), a
+     * bounded, read-only LLM call that never writes anything and never touches the
+     * gate. Always resolves a GuideReply, even on failure/timeout (fallback: true) —
+     * never rejects.
+     */
+    guideAsk(repoPath: string, question: string, executor: string, model?: string): Promise<GuideReply>;
 }

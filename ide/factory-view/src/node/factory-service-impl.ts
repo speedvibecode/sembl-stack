@@ -3,8 +3,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { spawn } from 'child_process';
 import {
-    DiscussConfirmResult, DiscussProposal, FactoryService, FactoryState, PipelineLayer,
-    RerunResult, RunSummary
+    DiscussConfirmResult, DiscussProposal, FactoryService, FactoryState, GuideReply,
+    PipelineLayer, RerunResult, RunSummary
 } from '../common/factory-protocol';
 
 // Mirrors sembl_stack/config.py DEFAULTS["layers"] — the resolution rule is
@@ -168,6 +168,8 @@ const DISCUSS_FALLBACK: Omit<DiscussProposal, 'raw'> = {
     taskText: '', editablePaths: [], forbiddenAreas: [], clarifyingQuestions: [], fallback: true
 };
 
+const GUIDE_FALLBACK: GuideReply = { answer: '', suggestions: [], fallback: true };
+
 /**
  * `sembl_stack.cli discuss` prints `json.dumps(proposal, indent=2)` as the FIRST thing
  * on stdout, followed by either a "wrote ..." line (--yes) or a "(review/edit...)" note —
@@ -200,6 +202,25 @@ function toDiscussProposal(data: any): Omit<DiscussProposal, 'fallback' | 'raw'>
         forbiddenAreas: asStrArr(data.forbidden_areas),
         clarifyingQuestions: asStrArr(data.clarifying_questions)
     };
+}
+
+/** The engine's `{"answer", "suggestions", "fallback"}` dict (already fixed-schema on
+ * the Python side, see factory_guide._parse_reply) -> the protocol's GuideReply,
+ * coercing/dropping malformed entries rather than trusting the shape blindly. */
+function toGuideReply(data: any): GuideReply | undefined {
+    if (!data || typeof data !== 'object') { return undefined; }
+    const answer = typeof data.answer === 'string' ? data.answer : '';
+    const suggestions: GuideReply['suggestions'] = [];
+    if (Array.isArray(data.suggestions)) {
+        for (const entry of data.suggestions) {
+            if (!entry || typeof entry !== 'object') { continue; }
+            const command = entry.command;
+            if (typeof command !== 'string' || !command.trim()) { continue; }
+            suggestions.push({ command: command.trim(), why: typeof entry.why === 'string' ? entry.why : '' });
+        }
+    }
+    const fallback = data.fallback === true;
+    return { answer, suggestions, fallback };
 }
 
 @injectable()
@@ -405,6 +426,64 @@ export class FactoryServiceImpl implements FactoryService {
             });
             child.stdin?.write(payload);
             child.stdin?.end();
+        });
+    }
+
+    async guideAsk(repoPath: string, question: string, executor: string, model?: string): Promise<GuideReply> {
+        const repo = normalizeRepoPath(repoPath);
+        const python = resolvePythonExecutable(repo);
+        const args = ['-m', 'sembl_stack.cli', 'explain', question, '--repo', repo, '--executor', executor];
+        if (model) { args.push('--model', model); }
+        args.push('--json');
+
+        let stdout = '';
+        let stderr = '';
+        let settled = false;
+        return new Promise<GuideReply>(resolve => {
+            const finish = (reply: GuideReply) => {
+                if (settled) { return; }
+                settled = true;
+                resolve(reply);
+            };
+            let child;
+            try {
+                // async spawn — NOT spawnSync: same reasoning as discussPropose (this
+                // shells out to a model call that can take tens of seconds).
+                child = spawn(python, args, { cwd: repo, stdio: ['ignore', 'pipe', 'pipe'] });
+            } catch {
+                finish(GUIDE_FALLBACK);
+                return;
+            }
+            const timer = setTimeout(() => {
+                try { child.kill(); } catch { /* already dead */ }
+                finish(GUIDE_FALLBACK);
+            }, 90000);
+            child.stdout?.on('data', d => { stdout += d.toString(); });
+            child.stderr?.on('data', d => { stderr += d.toString(); });
+            child.on('error', () => {
+                clearTimeout(timer);
+                finish(GUIDE_FALLBACK);
+            });
+            child.on('close', code => {
+                clearTimeout(timer);
+                if (code !== 0) {
+                    finish(GUIDE_FALLBACK);
+                    return;
+                }
+                const jsonText = firstBalancedJsonObject(stdout);
+                let parsed: any;
+                try {
+                    parsed = jsonText ? JSON.parse(jsonText) : undefined;
+                } catch {
+                    parsed = undefined;
+                }
+                const reply = toGuideReply(parsed);
+                if (!reply) {
+                    finish(GUIDE_FALLBACK);
+                    return;
+                }
+                finish(reply);
+            });
         });
     }
 }

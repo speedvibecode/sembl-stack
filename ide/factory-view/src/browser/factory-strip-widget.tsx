@@ -134,6 +134,16 @@ export class FactoryStripWidget extends ReactWidget {
                     </span>}
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '16px', paddingRight: '16px', flex: 'none' }}>
+                <span
+                    onClick={e => { e.stopPropagation(); this.commands.executeCommand('sembl.guide.toggle'); }}
+                    title="ask the read-only factory guide"
+                    className="sembl-strip-guide"
+                    style={{
+                        fontFamily: SEMBL.mono, fontSize: '10px', letterSpacing: '0.04em',
+                        color: 'rgba(255,255,255,0.4)', cursor: 'pointer'
+                    }}
+                >guide</span>
+                <div style={{ width: '1px', height: '14px', background: 'rgba(255,255,255,0.1)' }} />
                 <div style={gateChipStyle(tone)}>
                     {running ? 'running' : (latest ? (latest.verdictStatus ?? latest.status ?? '—') : '—')}
                 </div>

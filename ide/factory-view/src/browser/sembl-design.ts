@@ -86,6 +86,7 @@ export function ensureSemblDesign(): void {
 #sembl-strip-host { position: absolute; top: 0; left: 0; right: 0; height: 32px; z-index: 5; }
 #theia-app-shell { top: 32px !important; }
 .sembl-factory-strip { width: 100%; height: 32px; min-height: 32px; }
+.sembl-strip-guide:hover { color: ${SEMBL.cyan} !important; }
 `;
     document.head.appendChild(style);
 }

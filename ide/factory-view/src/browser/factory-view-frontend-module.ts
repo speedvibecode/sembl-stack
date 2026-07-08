@@ -8,6 +8,8 @@ import { FactoryViewWidget } from './factory-view-widget';
 import { FactoryStripWidget } from './factory-strip-widget';
 import { DiscussContribution } from './discuss-contribution';
 import { DiscussWidget } from './discuss-widget';
+import { GuideContribution } from './guide-contribution';
+import { GuideWidget } from './guide-widget';
 
 // Upstream boot-deadlock workaround (Theia 1.73.1): @theia/ai-core ships (via
 // plugin-ext, not by our choice) a SkillPromptCoordinator whose onStart awaits
@@ -47,6 +49,17 @@ export default new ContainerModule(bind => {
     bind(WidgetFactory).toDynamicValue(ctx => ({
         id: DiscussWidget.ID,
         createWidget: () => ctx.container.get(DiscussWidget)
+    })).inSingletonScope();
+
+    // Design step 6d: the guide panel — a third, independent widget in this
+    // extension, same bindViewContribution pattern as discuss.
+    bindViewContribution(bind, GuideContribution);
+    bind(FrontendApplicationContribution).toService(GuideContribution);
+
+    bind(GuideWidget).toSelf();
+    bind(WidgetFactory).toDynamicValue(ctx => ({
+        id: GuideWidget.ID,
+        createWidget: () => ctx.container.get(GuideWidget)
     })).inSingletonScope();
 
     bind(FactoryService).toDynamicValue(ctx => {

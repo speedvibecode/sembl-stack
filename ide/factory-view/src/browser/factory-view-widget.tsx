@@ -198,6 +198,8 @@ export class FactoryViewWidget extends ReactWidget {
                     letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.85)'
                 }}>sembl factory</span>
                 <div style={{ flex: 1 }} />
+                <button onClick={() => this.toggleView('sembl.guide.toggle')}
+                    title="ask the read-only factory guide" style={this.headerButtonStyle()}>guide</button>
                 <button onClick={() => this.toggleView('sembl.drift.toggle')}
                     title="spec↔code drift findings and resolution" style={this.headerButtonStyle()}>drift</button>
                 <button onClick={() => this.toggleView('sembl.graph.toggle')}
