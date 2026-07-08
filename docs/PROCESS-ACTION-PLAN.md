@@ -175,7 +175,26 @@ in `docs/PRODUCT-sembl-ide.md`; the identity is "the IDE for spec-anchored devel
 strip + per-layer executor pickers + discuss + gate verdicts, never editor features. All
 surfaces remain thin renderers (O1 unchanged); every prior surface lock (O3/O8/O9,
 BLOCK-means-blocked) carries over verbatim. The Theia slice is retired to reference status
-once P1 reaches parity.
+once P1 reaches parity. · **O11 [LOCKED 2026-07-09] the operator agent is the third and
+final LLM pattern**: a free-flowing tool-calling conversation (any model) that is the
+platform's PRIMARY interface — its tools are exactly the typed engine surfaces (create/refine
+spec, run loop, resolve drift, swap adapter, read state); it may propose anything and can
+commit ONLY through those tools; it owns zero judgment, cannot grade code, cannot touch or
+override the gate; every commitment is bound to a run ID. Verdicts/drift/prod-checks post
+into the conversation via an event bus. "Freedom at the conversation, determinism at the
+commitment." · **O12 [LOCKED 2026-07-09] behavioral acceptance joins the gate**: executable
+examples/properties attached to the spec (given/when/then, property tests, contract
+invariants), run deterministically by the gate alongside the trespass axes. Within O3 — we
+run declared behavior, we never grade quality. · **O13 [LOCKED 2026-07-09] repo intelligence
+is the L1 adapter class** (codebase-memory MCP default; LLM-wiki/graphify/latentgraph
+siblings), feeding both brownfield spec recovery (drift-in-reverse on day zero) and the drift
+daemon. · **O14 [LOCKED 2026-07-09] the manual-edit adoption rule**: in-bounds human edits
+auto-adopt into the spec (daemon announces, one-click veto); bound-crossing edits ALWAYS ask
+(widen bounds or revert) — a bounds violation is never silently adopted. · **O15 [LOCKED
+2026-07-09] the credentials boundary**: secrets live in a swappable secrets-manager adapter,
+sembl stores pointers only (profile.py rule made product-wide); env promotion sandbox(none) →
+staging(scoped) → prod(explicit); executors never see raw secrets — injected at the adapter
+boundary outside model context. Full product definition: `docs/PRODUCT-sembl-ide.md` v2.
 
 ## 6. North Star — recursive PROCESS self-improvement
 The process improves itself **because of the tools of the process**, not because any model gets
