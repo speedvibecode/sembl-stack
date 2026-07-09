@@ -86,6 +86,114 @@ class Bounds(_Serializable):
         }
 
 
+_ACCEPTANCE_CHECK_KINDS = ("example", "property", "invariant")
+_ACCEPTANCE_CHECK_PROFILES = ("command", "web", "contract")
+_ACCEPTANCE_DEFAULT_TIMEOUT_S = 120
+_ACCEPTANCE_MAX_TIMEOUT_S = 600
+
+
+def _coerce_acceptance_check(raw) -> dict | None:
+    """One AcceptanceCheck dict -> a validated dict, or `None` if malformed.
+
+    Same coercion discipline as `discuss.py`'s `SCHEMA_KEYS`: a check that's missing a
+    required field or shaped wrong is DROPPED here, never raised — a malformed check
+    (hand-edited acceptance.json, a bad O8 proposal) must never crash the loop; it
+    simply doesn't run and isn't counted as declared.
+    """
+    if not isinstance(raw, dict):
+        return None
+    cid = raw.get("id")
+    kind = raw.get("kind")
+    if not isinstance(cid, str) or not cid.strip():
+        return None
+    if kind not in _ACCEPTANCE_CHECK_KINDS:
+        return None
+    profile = raw.get("profile", "command")
+    if profile not in _ACCEPTANCE_CHECK_PROFILES:
+        return None
+    run = raw.get("run")
+    run = dict(run) if isinstance(run, dict) else {}
+    expect = raw.get("expect")
+    expect = dict(expect) if isinstance(expect, dict) else {}
+    seed = raw.get("seed")
+    if not isinstance(seed, int) or isinstance(seed, bool):
+        seed = None
+    timeout_s = raw.get("timeout_s", _ACCEPTANCE_DEFAULT_TIMEOUT_S)
+    if not isinstance(timeout_s, int) or isinstance(timeout_s, bool) or timeout_s <= 0:
+        timeout_s = _ACCEPTANCE_DEFAULT_TIMEOUT_S
+    timeout_s = min(timeout_s, _ACCEPTANCE_MAX_TIMEOUT_S)
+    return {
+        "id": cid,
+        "kind": kind,
+        "profile": profile,
+        "description": str(raw.get("description") or ""),
+        "run": run,
+        "expect": expect,
+        "seed": seed,
+        "timeout_s": timeout_s,
+    }
+
+
+@dataclass
+class Acceptance(_Serializable):
+    """The declared behavioral contract (O12). Sibling to `Bounds`: Bounds governs
+    *where* a change may go; Acceptance governs *what must hold*. Produced at plan
+    time / spec time, consumed by the runner (L4.5) and the gate (L5)."""
+    KIND = "acceptance"
+    checks: list[dict] = field(default_factory=list)   # AcceptanceCheck dicts
+    sources: list[str] = field(default_factory=list)
+    # Declared-but-unusable check ids (malformed kind/shape, corrupt source file).
+    # These stay DECLARED in `to_contract()` so the gate's declared-vs-ran integrity
+    # check BLOCKs on them — a contract entry we cannot run must fail closed, never
+    # silently vanish (the O8 drop-malformed discipline is for LLM *proposals*; a
+    # human-authored contract is never silently narrowed).
+    invalid_ids: list[str] = field(default_factory=list)
+
+    def __post_init__(self):
+        # Coerce on construction (including from_dict, which calls cls(**fields)) so a
+        # malformed check never survives into a round-trip or into the runner/gate.
+        # A malformed check that still carries a usable id is remembered in
+        # `invalid_ids` (fail-closed); only an id-less blob is truly droppable
+        # (there is nothing to declare it by).
+        kept: list[dict] = []
+        dropped: list[str] = list(self.invalid_ids)   # survive a from_dict round-trip
+        for raw in self.checks:
+            c = _coerce_acceptance_check(raw)
+            if c is not None:
+                kept.append(c)
+                continue
+            rid = raw.get("id") if isinstance(raw, dict) else None
+            if isinstance(rid, str) and rid.strip():
+                dropped.append(rid.strip())
+        self.checks = kept
+        self.invalid_ids = list(dict.fromkeys(dropped))
+
+    def to_contract(self) -> dict:
+        """The shape the gate consumes for the declared-vs-ran integrity check: just
+        the check ids + kinds, never the run/expect internals. Invalid-but-identifiable
+        checks are declared too — the runner produces no result for them, so the gate's
+        `behavioral_missing` integrity check BLOCKs (fail-closed by design)."""
+        return {"checks": [{"id": c["id"], "kind": c["kind"],
+                            "profile": c.get("profile", "command")}
+                           for c in self.checks]
+                + [{"id": iid, "kind": "invalid", "profile": "command"}
+                   for iid in self.invalid_ids]}
+
+
+@dataclass
+class AcceptanceReport(_Serializable):
+    """The runner's deterministic output (L4.5) — never a gate verdict itself, just
+    the declared checks' outcomes for the gate to fold."""
+    KIND = "acceptance_report"
+    results: list[dict] = field(default_factory=list)   # AcceptanceResult dicts
+    runner: str = ""                                     # adapter id + version
+    data: dict = field(default_factory=dict)
+
+    @property
+    def any_failed(self) -> bool:
+        return any(r.get("outcome") in ("FAIL", "ERROR") for r in self.results)
+
+
 @dataclass
 class Spec(_Serializable):
     """L0.5 output — the reviewed product spec/PRD (Track 5, see
@@ -211,7 +319,7 @@ ExecutionResult = Change
 
 KINDS = {c.KIND: c for c in (
     Task, Context, SpecGraph, Spec, Bounds, Change, Verdict, ReconciliationReport,
-    ReviewReport, Trace, Delivery, MergeRecord)}
+    ReviewReport, Trace, Delivery, MergeRecord, Acceptance, AcceptanceReport)}
 
 
 def from_dict(d: dict):

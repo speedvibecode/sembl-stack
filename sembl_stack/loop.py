@@ -16,8 +16,8 @@ from dataclasses import dataclass, field
 from typing import Any, TypedDict
 
 from .adapters.base import Task, Verdict
-from .artifacts import Change, Trace, bind_verdict
-from .config import StackConfig
+from .artifacts import AcceptanceReport, Change, Trace, bind_verdict
+from .config import StackConfig, load_acceptance
 from .specgraph import build_spec_graph
 from .store import RunStore
 from .tracing import get_tracer
@@ -31,6 +31,8 @@ class LoopState(TypedDict, total=False):
     bounds: Any
     sandbox: Any
     result: Any
+    acceptance: Any             # the declared Acceptance contract this attempt ran, or None
+    acceptance_report: Any      # the AcceptanceReport this attempt produced
     verdict: Any
 
 
@@ -213,6 +215,59 @@ def _isolation_breach(before: set[str] | None, after: set[str] | None) -> str | 
             f"(unexpected working-tree changes outside {_STORE_PREFIX}: {shown})")
 
 
+def _acceptance_contract(cfg: StackConfig, task: Task):
+    """The `Acceptance` contract declared for this run, or `None` (O12).
+
+    The loop attaches nothing itself — a contract is filesystem-declared the same way
+    `Bounds`' hand-written `bounds.json` fallback works (`config.load_acceptance`
+    reads `<repo>/acceptance.json` / `.sembl/acceptance.json`). `None` means no
+    behavioral surface was declared for this repo; the axis stays a strict no-op.
+    """
+    return load_acceptance(getattr(task, "repo", "."))
+
+
+def _acceptance_node(cfg: StackConfig, task: Task, tracer, run):
+    """Build the L4.5 acceptance node (§4.3): runs declared checks in the L4 sandbox,
+    between execute and verify. A no-op — an empty `AcceptanceReport` plus a single
+    "skip" event, never a fabricated "start"/"done" — when no `Acceptance` is
+    declared/attached OR the configured runner is `none` (`cfg.acceptance is None`).
+    """
+    def acceptance(state: dict) -> dict:
+        attempt_n = state["attempt"] + 1
+        runner = getattr(cfg, "acceptance", None)
+        contract = _acceptance_contract(cfg, task)
+        # `invalid_ids` counts as a declared surface: a contract we could not read/coerce
+        # must reach the gate (where its checks will be "declared, no result" => BLOCK),
+        # never fall into the silent no-op path.
+        if runner is None or contract is None or not (contract.checks or contract.invalid_ids):
+            run.append_event("acceptance", "skip", attempt=attempt_n)
+            return {"acceptance": None, "acceptance_report": AcceptanceReport()}
+
+        run.append_event("acceptance", "start", attempt=attempt_n)
+        sandbox = state["sandbox"]
+        with tracer.span("L4.5.acceptance", attempt=attempt_n):
+            try:
+                report = runner.run(contract, sandbox, task, state.get("bounds"))
+            except Exception as exc:
+                # Defense-in-depth mirror of the never-reject contract the runner itself
+                # must already honor (§4.2): even if a swapped-in runner crashes past its
+                # own guard, the loop must not abort — every declared check becomes an
+                # ERROR result instead of a raised exception reaching the graph.
+                report = AcceptanceReport(
+                    results=[
+                        {"id": c.get("id", "*"), "outcome": "ERROR", "seed": c.get("seed"),
+                         "duration_s": 0.0, "evidence": "",
+                         "detail": f"acceptance runner crashed: {exc!r}"}
+                        for c in contract.checks
+                    ],
+                    runner="crashed")
+        run.put(report, name=f"acceptance-{attempt_n}")
+        run.append_event("acceptance", "done", attempt=attempt_n)
+        return {"acceptance": contract, "acceptance_report": report}
+
+    return acceptance
+
+
 def _nodes(cfg: StackConfig, task: Task, tracer, run, holder: dict | None = None):
     def plan(state: dict) -> dict:
         run.append_event("spec", "start")
@@ -303,8 +358,21 @@ def _nodes(cfg: StackConfig, task: Task, tracer, run, holder: dict | None = None
                          "implemented; check the executor/model output"],
                 raw={"empty_diff": True, "report": getattr(change, "report", {})})
         else:
+            # O12: forward the acceptance fold input ONLY when a contract actually ran this
+            # attempt (never on the no-op-skip path) — this is what keeps a `verify` adapter
+            # that doesn't know the `acceptance` kwarg (an older/pinned gate, a stub in an
+            # existing test) working exactly as before when no behavioral axis is declared.
+            acceptance_kwargs = {}
+            contract = state.get("acceptance")
+            if contract is not None:
+                report = state.get("acceptance_report")
+                acceptance_kwargs["acceptance"] = {
+                    "declared": contract.to_contract()["checks"],
+                    "results": list(getattr(report, "results", []) or []),
+                }
             with tracer.span("L5.verify"):
-                verdict = cfg.verify.verify(state["bounds"], change, cfg.strict)
+                verdict = cfg.verify.verify(state["bounds"], change, cfg.strict,
+                                            **acceptance_kwargs)
             rc = _nonzero_exit(change)
             if rc is not None and verdict.status == "PASS":
                 # The change passed the gate but the executor process exited non-zero — it
@@ -344,13 +412,15 @@ def run(cfg: StackConfig, task: Task) -> LoopResult:
     tree_before = _source_tree_status(task.repo)
     holder: dict = {"sandbox": None}
     plan, execute, verify, route = _nodes(cfg, task, tracer, run_rec, holder)
+    acceptance = _acceptance_node(cfg, task, tracer, run_rec)   # L4.5, between execute/verify
     init = {"attempt": 0, "feedback": None, "history": []}
 
     try:
         try:
-            final, engine = _run_langgraph(plan, execute, verify, route, init)
+            final, engine = _run_langgraph(plan, execute, acceptance, verify, route, init)
         except ImportError:
-            final, engine = _run_fallback(plan, execute, verify, route, init), "fallback"
+            final, engine = (_run_fallback(plan, execute, acceptance, verify, route, init),
+                             "fallback")
     except Exception as exc:
         # A crash in plan/verify (executor crashes are already converted in-node) must not
         # leave the run stuck at "started" with an open sandbox on disk. Close the cage,
@@ -401,26 +471,29 @@ def run(cfg: StackConfig, task: Task) -> LoopResult:
     )
 
 
-def _run_langgraph(plan, execute, verify, route, init):
+def _run_langgraph(plan, execute, acceptance, verify, route, init):
     from langgraph.graph import StateGraph, END   # raises ImportError if absent
 
     g = StateGraph(LoopState)
     g.add_node("plan", plan)
     g.add_node("execute", execute)
+    g.add_node("acceptance", acceptance)
     g.add_node("verify", verify)
     g.set_entry_point("plan")
     g.add_edge("plan", "execute")
-    g.add_edge("execute", "verify")
+    g.add_edge("execute", "acceptance")
+    g.add_edge("acceptance", "verify")
     g.add_conditional_edges("verify", route, {"retry": "execute", "done": END})
     app = g.compile()
     return app.invoke(init, {"recursion_limit": 50}), "langgraph"
 
 
-def _run_fallback(plan, execute, verify, route, init):
+def _run_fallback(plan, execute, acceptance, verify, route, init):
     state = dict(init)
     state.update(plan(state))
     while True:
         state.update(execute(state))
+        state.update(acceptance(state))
         state.update(verify(state))
         if route(state) == "done":
             return state

@@ -12,6 +12,8 @@ import subprocess
 from typing import Protocol, runtime_checkable
 
 from ..artifacts import (  # noqa: F401  (re-exported for adapters)
+    Acceptance,
+    AcceptanceReport,
     Bounds,
     Change,
     Context,
@@ -182,4 +184,11 @@ class PostDeployAdapter(Protocol):   # L8: Delivery -> Verdict
 @runtime_checkable
 class ReviewAdapter(Protocol):       # L5.5 quality: a diff -> ReviewReport (advisory)
     def review(self, diff: str, *, reviewer_hint: str = "") -> ReviewReport:
+        ...
+
+
+@runtime_checkable
+class AcceptanceRunner(Protocol):    # L4.5: Acceptance+Sandbox+Task+Bounds -> AcceptanceReport
+    def run(self, acceptance: Acceptance, sandbox: Sandbox, task: Task,
+            bounds: Bounds) -> AcceptanceReport:
         ...

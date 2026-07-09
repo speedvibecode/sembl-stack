@@ -1,18 +1,21 @@
 """Load sembl.stack.yaml and resolve it into wired-up adapters."""
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
 from pathlib import Path
 
 import yaml
 
 from . import registry
+from .artifacts import Acceptance
 
 DEFAULTS = {
     "layers": {"spec": "sembl", "execute": "mock",
                "sandbox": "worktree", "verify": "sembl", "context": "none",
                "codegraph": "cbm", "review": "mock",
-               "merge": "git", "deploy": "vercel", "postdeploy": "http"},
+               "merge": "git", "deploy": "vercel", "postdeploy": "http",
+               "acceptance": "command"},
     "transport": {"spec": "mcp", "verify": "mcp",
                   "mcp_server": ["uvx", "--from", "sembl[mcp]", "sembl-mcp"]},
     "loop": {"max_attempts": 3, "strict": True},
@@ -32,6 +35,7 @@ class StackConfig:
     merge: object = None
     deploy: object = None
     postdeploy: object = None
+    acceptance: object = None
     max_attempts: int = 3
     strict: bool = True
     langfuse: bool = False
@@ -80,8 +84,41 @@ def load(path: str | None, overrides: dict | None = None) -> StackConfig:
                               opts.get("deploy")),
         postdeploy=registry.build("postdeploy", layers.get("postdeploy", "http"), "cli",
                                   server, opts.get("postdeploy")),
+        acceptance=registry.build("acceptance", layers.get("acceptance", "command"), "cli",
+                                  server, opts.get("acceptance")),
         max_attempts=cfg["loop"]["max_attempts"],
         strict=cfg["loop"]["strict"],
         langfuse=cfg["tracing"]["langfuse"],
         raw=cfg,
     )
+
+
+def load_acceptance(repo: str) -> Acceptance | None:
+    """The declared `Acceptance` contract for `repo`, or `None` if none is declared.
+
+    Loaded from `<repo>/acceptance.json`, else `<repo>/.sembl/acceptance.json` — the
+    same "hand-written file beside the repo" fallback `SemblSpecAdapter.plan` uses for
+    `bounds.json`. `None` (no file, or a well-formed file with zero checks) means the
+    behavioral axis is a strict no-op for this run; it is never fabricated.
+
+    A file that EXISTS but cannot be read as a contract (corrupt JSON, wrong shape)
+    is NOT the same as no file: someone declared a behavioral surface and we cannot
+    honor it. That returns a contract whose synthetic `invalid_ids` entry the gate
+    will BLOCK on (declared, no result) — fail closed, never a silent skip."""
+    for rel in ("acceptance.json", ".sembl/acceptance.json"):
+        cand = Path(repo) / rel
+        if not cand.is_file():
+            continue
+        try:
+            payload = json.loads(cand.read_text(encoding="utf-8-sig"))
+        except (OSError, ValueError) as exc:
+            return Acceptance(sources=[str(cand)],
+                              invalid_ids=[f"{rel} (unreadable: {exc})"])
+        if not isinstance(payload, dict):
+            return Acceptance(sources=[str(cand)],
+                              invalid_ids=[f"{rel} (not a JSON object)"])
+        acc = Acceptance(checks=payload.get("checks", []),
+                         sources=payload.get("sources", [str(cand)]))
+        if acc.checks or acc.invalid_ids:
+            return acc
+    return None

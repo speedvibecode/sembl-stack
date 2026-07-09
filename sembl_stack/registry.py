@@ -6,6 +6,7 @@ swappable with a one-line config change.
 """
 from __future__ import annotations
 
+from .adapters.acceptance_command import CommandAcceptanceRunner
 from .adapters.execute_aider import AiderExecutor
 from .adapters.execute_claude import ClaudeCodeExecutor
 from .adapters.execute_mock import MockExecutor
@@ -72,6 +73,11 @@ _REGISTRY: dict[str, dict[str, object]] = {
     "postdeploy": {
         "http": lambda t, s, o: HttpPostDeployGate(
             health_path=o.get("health_path", "/"), expect_json=o.get("expect_json")),
+    },
+    "acceptance": {                                       # L4.5 behavioral axis (O12)
+        "command": lambda t, s, o: CommandAcceptanceRunner(
+            default_timeout=o.get("default_timeout", 120)),
+        "none": lambda t, s, o: None,                      # explicit no-op (disables the axis)
     },
 }
 

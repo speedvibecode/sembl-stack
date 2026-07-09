@@ -126,6 +126,24 @@ def run_checks(cfg=None, repo: str = ".") -> list[Check]:
             "L2 needs a contract: set spec_path in task.yaml, or add a bounds.json "
             "next to it (`sembl-stack init` scaffolds one)"))
 
+    # --- acceptance runner (O12 behavioral axis; optional per-run, never a silent skip) ---
+    acceptance = layers.get("acceptance", "command")
+    if acceptance == "none":
+        checks.append(Check(
+            "acceptance", True, "disabled (runner: none)",
+            "the behavioral axis is off — declare acceptance.json AND set "
+            "acceptance: command to turn it on", required=False))
+    elif acceptance == "command":
+        checks.append(Check(
+            f"acceptance: {acceptance}", True,
+            "no external toolchain needed", required=False))
+    else:
+        checks.append(Check(
+            f"acceptance: {acceptance}", False, "not available in this build",
+            f"the '{acceptance}' acceptance runner isn't implemented yet (only "
+            "'command' and 'none' exist) — set acceptance: command or acceptance: none",
+            required=False))
+
     # --- context graph (only when context: symgraph) ---
     if layers.get("context") == "symgraph":
         sg_ok = shutil.which("symgraph") is not None
