@@ -8,6 +8,7 @@ import subprocess
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
 import yaml
 
 from sembl_stack import guide, presets, scaffold
@@ -258,6 +259,19 @@ class TestDiffStat:
 
 
 class TestInlineFlow:
+    @pytest.fixture(autouse=True)
+    def _isolated_profile(self, monkeypatch):
+        """No test in this class may read or write the HOST's saved agent profile.
+
+        `launch()` consults `profile.load()` as its very first step (the agent is
+        chosen before the scaffold offer), so host state would decide whether the
+        agent picker even appears — the exact rot that broke
+        `test_declining_the_demo_exits_cleanly`: it passed only on machines with a
+        saved, ready profile. Individual tests override `save` when they need to
+        capture it."""
+        monkeypatch.setattr(guide.profile, "load", lambda: None)
+        monkeypatch.setattr(guide.profile, "save", lambda prof: None)
+
     def test_full_journey_demo_scaffold_to_verdict(self, tmp_path, monkeypatch, capsys):
         """The whole guided run, scripted: empty dir -> demo scaffold -> mock agent ->
         task -> real loop -> verdict. This is the product surface's smoke test."""
@@ -276,7 +290,6 @@ class TestInlineFlow:
             select=lambda *a, **k: _Answer(answers["select"].pop(0)),
             text=lambda *a, **k: _Answer(answers["text"].pop(0))))
         saved = {}
-        monkeypatch.setattr(guide.profile, "load", lambda: None)
         monkeypatch.setattr(guide.profile, "save",
                             lambda prof: saved.update(runner=prof.runner))
 
@@ -311,8 +324,6 @@ class TestInlineFlow:
             confirm=lambda *a, **k: _Answer(answers["confirm"].pop(0)),
             select=lambda *a, **k: _Answer(answers["select"].pop(0)),
             text=lambda *a, **k: _Answer(answers["text"].pop(0))))
-        monkeypatch.setattr(guide.profile, "load", lambda: None)
-        monkeypatch.setattr(guide.profile, "save", lambda prof: None)
 
         guide.launch(str(tmp_path))
 
@@ -322,12 +333,19 @@ class TestInlineFlow:
         assert capsys.readouterr().out.count("PASS") >= 2
 
     def test_declining_the_demo_exits_cleanly(self, tmp_path, monkeypatch, capsys):
-        class _No:
-            def ask(self):
-                return False
+        class _Answer:
+            def __init__(self, value):
+                self._value = value
 
+            def ask(self):
+                return self._value
+
+        # The agent picker is launch()'s FIRST prompt (agent before scaffold, so a
+        # fresh config bakes in the chosen executor) — answer it with mock, then
+        # decline the demo scaffold at the confirm.
         monkeypatch.setattr(guide, "questionary", SimpleNamespace(
-            confirm=lambda *a, **k: _No()))
+            select=lambda *a, **k: _Answer("mock"),
+            confirm=lambda *a, **k: _Answer(False)))
         guide.launch(str(tmp_path))
         assert not (tmp_path / ".git").exists()
         assert "git" in capsys.readouterr().out
