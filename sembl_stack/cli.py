@@ -578,7 +578,8 @@ def postdeploy(delivery_path, health_path, timeout_s, do_rollback, repo, config_
     cfg = load(_resolve_config(config_path, repo))
     # health_path=None lets the adapter use its configured default (options.postdeploy.health_path
     # + expect_json payload contract); an explicit --health-path overrides per-call.
-    verdict = cfg.postdeploy.verify(delivery, health_path=health_path, timeout_s=timeout_s)
+    verdict = cfg.postdeploy.verify(delivery, health_path=health_path, timeout_s=timeout_s,
+                                    repo=repo)
 
     # L8 rollback trigger: a BLOCK means the live deploy is bad — revert it. Opt-in so default
     # behavior is unchanged. The rollback outcome is recorded in the prod Verdict, never hidden.

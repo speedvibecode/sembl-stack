@@ -12,10 +12,19 @@ import subprocess
 import time
 from pathlib import Path
 
+from ..bus import publish
 from ._redact import summarize
 from .base import Delivery
 
 _URL_RE = re.compile(r"https://[^\s]+")
+
+
+def _publish_deploy_status(repo: str, delivery: Delivery) -> None:
+    """Bus mirror for a produced `Delivery` (D5) — fire-and-forget, never on the hot path."""
+    publish(Path(repo).resolve(), {
+        "kind": "deploy.status",
+        "summary": f"deploy: {delivery.status}" + (f" ({delivery.url})" if delivery.url else ""),
+        "data": {"status": delivery.status, "url": delivery.url}})
 
 
 class VercelDeployAdapter:
@@ -31,8 +40,10 @@ class VercelDeployAdapter:
         repo_path = str(Path(repo).resolve())
         cmd = _resolve_vercel()
         if not cmd:
-            return Delivery(target="vercel", status="failed",
+            delivery = Delivery(target="vercel", status="failed",
                             data={"reason": "vercel CLI not found on PATH"})
+            _publish_deploy_status(repo, delivery)
+            return delivery
         if prebuilt:
             cmd.append("deploy")
             cmd.append("--prebuilt")
@@ -47,7 +58,7 @@ class VercelDeployAdapter:
                 cmd, cwd=repo_path, capture_output=True, text=True,
                 encoding="utf-8", errors="replace", timeout=self.timeout)
         except subprocess.TimeoutExpired as exc:
-            return Delivery(
+            delivery = Delivery(
                 target="vercel",
                 status="failed",
                 data={
@@ -58,12 +69,14 @@ class VercelDeployAdapter:
                     "stderr": summarize(exc.stderr),
                 },
             )
+            _publish_deploy_status(repo, delivery)
+            return delivery
 
         stdout = proc.stdout or ""
         stderr = proc.stderr or ""
         url = _last_url(stdout) or _last_url(stderr)
         status = "deployed" if proc.returncode == 0 and url else "failed"
-        return Delivery(
+        delivery = Delivery(
             target="vercel",
             url=url,
             status=status,
@@ -77,6 +90,8 @@ class VercelDeployAdapter:
                 "stderr": summarize(stderr),
             },
         )
+        _publish_deploy_status(repo, delivery)
+        return delivery
 
     def rollback(self, repo: str, *, to: str | None = None) -> Delivery:
         """Promote the previous production deployment (Vercel rollback).

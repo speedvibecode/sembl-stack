@@ -1048,7 +1048,7 @@ def _ship_step(root: Path, run_id: str) -> None:
         return
 
     if questionary.confirm("Run the post-deploy health check?", default=True).ask():
-        prod_verdict = cfg.postdeploy.verify(delivery)
+        prod_verdict = cfg.postdeploy.verify(delivery, repo=str(root))
         color = {"PASS": "green", "WARN": "yellow"}.get(prod_verdict.status, "red")
         click.secho(f"  health: {prod_verdict.status}", fg=color)
         for r in getattr(prod_verdict, "reasons", []) or []:

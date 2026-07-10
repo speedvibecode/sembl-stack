@@ -30,6 +30,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from .artifacts import ReconciliationReport, SpecGraph
+from .bus import publish
 from .reconciliation import reconcile_spec_code
 
 STATE_SCHEMA_VERSION = 1
@@ -127,6 +128,17 @@ def check_drift(spec_graph: SpecGraph, code_graph: dict, *,
     state["findings"] = next_findings
     state["generated_at"] = now
     _save_state(path, state)
+
+    if new:
+        # `state_path` is conventionally `<repo>/.sembl/drift-state.json` (default and
+        # factory_guide.py both follow this), so its grandparent is the repo root.
+        try:
+            publish(path.resolve().parent.parent, {
+                "kind": "drift.new",
+                "summary": f"drift: {len(new)} new finding(s)",
+                "data": {"keys": [finding_key(f) for f in new], "count": len(new)}})
+        except Exception:
+            pass
 
     return DriftCheck(report=report, new=new, pending=pending, resolved=resolved)
 

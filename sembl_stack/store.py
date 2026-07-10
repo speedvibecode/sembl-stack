@@ -14,6 +14,7 @@ from pathlib import Path
 
 from . import artifacts
 from .artifacts import _Serializable
+from .bus import publish
 
 
 class Run:
@@ -68,6 +69,15 @@ class Run:
                 ensure_ascii=False)
             with (self.dir / "events.jsonl").open("a", encoding="utf-8") as f:
                 f.write(line + "\n")
+        except Exception:
+            pass
+        # Mirror to the repo-wide bus (D5) so any subscriber sees stage transitions live,
+        # for free, at this single choke point. `self.dir` is `<repo>/.sembl/runs/<id>`.
+        try:
+            summary = f"{stage}: {status}" + (f" (attempt {attempt})" if attempt else "")
+            publish(self.dir.parents[2], {
+                "kind": "run.stage", "run_id": self.id, "summary": summary,
+                "data": {"stage": stage, "status": status, "attempt": attempt}})
         except Exception:
             pass
 

@@ -13,10 +13,12 @@ from __future__ import annotations
 import subprocess
 import time
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, TypedDict
 
 from .adapters.base import Task, Verdict
 from .artifacts import AcceptanceReport, Change, Trace, bind_verdict
+from .bus import publish
 from .config import StackConfig, load_acceptance
 from .specgraph import build_spec_graph
 from .store import RunStore
@@ -408,6 +410,11 @@ def _nodes(cfg: StackConfig, task: Task, tracer, run, holder: dict | None = None
 def run(cfg: StackConfig, task: Task) -> LoopResult:
     tracer = get_tracer(cfg.langfuse)
     run_rec = RunStore(task.repo).new_run(task)
+    bus_root = Path(task.repo).resolve()
+    publish(bus_root, {
+        "kind": "run.started", "run_id": run_rec.id,
+        "summary": f"run started: {task.text[:80]}",
+        "data": {"task": task.text}})
     # L4 isolation guard: snapshot the source tree BEFORE any sandbox/executor runs.
     tree_before = _source_tree_status(task.repo)
     holder: dict = {"sandbox": None}
@@ -457,12 +464,23 @@ def run(cfg: StackConfig, task: Task) -> LoopResult:
     # trace, and the run status. Per-attempt artifacts remain as change-1/verdict-1...
     run_rec.put(final["result"], name="change")
     run_rec.put(verdict)
+    # Bus: publish the BOUND verdict (never recomputed) — same object just persisted above.
+    n_reasons = len(verdict.reasons)
+    publish(bus_root, {
+        "kind": "run.verdict", "run_id": run_rec.id,
+        "summary": f"gate verdict: {verdict.status}"
+                   + (f" ({n_reasons} reason{'s' if n_reasons != 1 else ''})" if n_reasons else ""),
+        "data": {"status": verdict.status, "reasons": list(verdict.reasons)}})
     run_rec.put(Trace(steps=[{"attempt": a, "status": s} for a, s in final["history"]]))
     log = run_rec.manifest().get("attempts_log", [])             # C1.3 per-attempt metrics
     total_latency_s = round(sum(e.get("latency_s", 0) for e in log), 3)
     run_rec.set_status(verdict.status,
                        attempts=final["attempt"], engine=engine,
                        total_latency_s=total_latency_s)
+    publish(bus_root, {
+        "kind": "run.finished", "run_id": run_rec.id,
+        "summary": f"run finished: {verdict.status}",
+        "data": {"status": verdict.status}})
 
     return LoopResult(
         verdict=verdict, attempts=final["attempt"],
