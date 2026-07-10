@@ -88,8 +88,7 @@ class Bounds(_Serializable):
 
 _ACCEPTANCE_CHECK_KINDS = ("example", "property", "invariant")
 _ACCEPTANCE_CHECK_PROFILES = ("command", "web", "contract")
-_ACCEPTANCE_DEFAULT_TIMEOUT_S = 120
-_ACCEPTANCE_MAX_TIMEOUT_S = 600
+_ACCEPTANCE_MAX_TIMEOUT_S = 600   # declared timeouts are capped here; DEFAULTS live in the runners
 
 
 def _coerce_acceptance_check(raw) -> dict | None:
@@ -118,10 +117,15 @@ def _coerce_acceptance_check(raw) -> dict | None:
     seed = raw.get("seed")
     if not isinstance(seed, int) or isinstance(seed, bool):
         seed = None
-    timeout_s = raw.get("timeout_s", _ACCEPTANCE_DEFAULT_TIMEOUT_S)
+    timeout_s = raw.get("timeout_s")
     if not isinstance(timeout_s, int) or isinstance(timeout_s, bool) or timeout_s <= 0:
-        timeout_s = _ACCEPTANCE_DEFAULT_TIMEOUT_S
-    timeout_s = min(timeout_s, _ACCEPTANCE_MAX_TIMEOUT_S)
+        # Absent (or unusably declared) stays None: the declaration layer records
+        # what was declared; the RUNNER owns execution policy, so its
+        # profile-specific `default_timeout` applies (command 120s, web 300s). A
+        # default injected here would silently override every profile's.
+        timeout_s = None
+    else:
+        timeout_s = min(timeout_s, _ACCEPTANCE_MAX_TIMEOUT_S)
     return {
         "id": cid,
         "kind": kind,

@@ -43,15 +43,18 @@ def test_acceptance_to_contract_surfaces_only_id_kind_profile():
     assert "expect" not in contract["checks"][0]
 
 
-def test_acceptance_check_timeout_defaulted_and_clamped():
+def test_acceptance_check_timeout_absence_preserved_and_clamped():
+    # Absence is DATA here: the artifact records what was declared, and the runner
+    # applies its profile-specific default_timeout. A default injected at coercion
+    # would silently override every runner profile's (that bug shipped once).
     acc = Acceptance(checks=[
-        {"id": "a", "kind": "example"},                          # no timeout_s -> default
+        {"id": "a", "kind": "example"},                          # no timeout_s -> None (runner defaults)
         {"id": "b", "kind": "invariant", "timeout_s": 99999},     # over the cap -> clamped
-        {"id": "c", "kind": "property", "timeout_s": -5},         # invalid -> default
+        {"id": "c", "kind": "property", "timeout_s": -5},         # invalid -> None (runner defaults)
     ])
-    assert acc.checks[0]["timeout_s"] == 120
+    assert acc.checks[0]["timeout_s"] is None
     assert acc.checks[1]["timeout_s"] == 600
-    assert acc.checks[2]["timeout_s"] == 120
+    assert acc.checks[2]["timeout_s"] is None
 
 
 def test_acceptance_check_profile_defaults_to_command_and_rejects_unknown():

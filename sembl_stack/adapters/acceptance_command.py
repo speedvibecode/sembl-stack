@@ -58,9 +58,9 @@ def _resolve_shim(argv: list[str]) -> list[str]:
     return [which, *argv[1:]]
 
 
-def _clamp_timeout(v) -> int:
+def _clamp_timeout(v, default: int = _DEFAULT_TIMEOUT_S) -> int:
     if not isinstance(v, int) or isinstance(v, bool) or v <= 0:
-        v = _DEFAULT_TIMEOUT_S
+        v = default
     return min(v, _MAX_TIMEOUT_S)
 
 
@@ -142,7 +142,7 @@ class CommandAcceptanceRunner:
             # fail-open this whole axis exists to prevent). The universal convention —
             # "the command succeeds" — is the default expectation.
             expect = {"exit_code": 0}
-        timeout_s = _clamp_timeout(check.get("timeout_s"))
+        timeout_s = _clamp_timeout(check.get("timeout_s"), self.default_timeout)
         try:
             proc = subprocess.run(
                 argv, cwd=cwd, capture_output=True, text=True, timeout=timeout_s,

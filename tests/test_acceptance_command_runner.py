@@ -64,6 +64,22 @@ def test_command_runner_error_on_timeout():
     assert report.any_failed is True
 
 
+def test_command_runner_configured_default_timeout_applies():
+    # The registry's `default_timeout` option must be a live knob: a check that
+    # declares no timeout_s of its own gets the RUNNER's default, not the module
+    # constant (a config value that silently does nothing is a lying config).
+    runner = CommandAcceptanceRunner(default_timeout=1)
+    check = _check("slow-default",
+                   [sys.executable, "-c", "import time; time.sleep(5)"], {})
+    del check["timeout_s"]
+    acc = Acceptance(checks=[check])
+    report = runner.run(acc, _Sandbox("."), task=None, bounds=None)
+
+    r = report.results[0]
+    assert r["outcome"] == "ERROR"
+    assert "timed out after 1s" in r["detail"]
+
+
 def test_command_runner_error_on_spawn_failure():
     runner = CommandAcceptanceRunner()
     acc = Acceptance(checks=[_check(

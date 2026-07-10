@@ -7,6 +7,7 @@ swappable with a one-line config change.
 from __future__ import annotations
 
 from .adapters.acceptance_command import CommandAcceptanceRunner
+from .adapters.acceptance_web import WebAcceptanceRunner
 from .adapters.execute_aider import AiderExecutor
 from .adapters.execute_claude import ClaudeCodeExecutor
 from .adapters.execute_mock import MockExecutor
@@ -77,6 +78,8 @@ _REGISTRY: dict[str, dict[str, object]] = {
     "acceptance": {                                       # L4.5 behavioral axis (O12)
         "command": lambda t, s, o: CommandAcceptanceRunner(
             default_timeout=o.get("default_timeout", 120)),
+        "web": lambda t, s, o: WebAcceptanceRunner(
+            default_timeout=o.get("default_timeout", 300)),
         "none": lambda t, s, o: None,                      # explicit no-op (disables the axis)
     },
 }

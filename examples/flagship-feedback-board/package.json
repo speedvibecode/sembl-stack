@@ -12,6 +12,7 @@
     "deploy:preview": "npm run deploy:check && npm run build && vercel --yes",
     "deploy:prod": "npm run deploy:check && npm run build && vercel --prod --yes",
     "postdeploy": "node scripts/postdeploy-health.mjs",
+    "test:web:feedback-board": "node scripts/web-check-feedback-board.mjs",
     "supabase:init": "npx supabase init --yes",
     "supabase:link": "npx supabase link",
     "supabase:push": "npx supabase db push"

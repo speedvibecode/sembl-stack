@@ -137,11 +137,21 @@ def run_checks(cfg=None, repo: str = ".") -> list[Check]:
         checks.append(Check(
             f"acceptance: {acceptance}", True,
             "no external toolchain needed", required=False))
+    elif acceptance == "web":
+        node_path = shutil.which("node") or shutil.which("npx")
+        node_ok = node_path is not None
+        checks.append(Check(
+            f"acceptance: {acceptance}", node_ok,
+            node_path or "node/npx not found",
+            "" if node_ok else
+            "install Node.js (https://nodejs.org) — the web acceptance runner "
+            "drives a Node test-runner invocation", required=False))
     else:
         checks.append(Check(
             f"acceptance: {acceptance}", False, "not available in this build",
             f"the '{acceptance}' acceptance runner isn't implemented yet (only "
-            "'command' and 'none' exist) — set acceptance: command or acceptance: none",
+            "'command', 'web', and 'none' exist) — set acceptance: command, "
+            "acceptance: web, or acceptance: none",
             required=False))
 
     # --- context graph (only when context: symgraph) ---

@@ -1,0 +1,19 @@
+{
+  "checks": [
+    {
+      "id": "feedback-board-renders-fallback",
+      "kind": "example",
+      "profile": "web",
+      "description": "Given the feedback board boots with Supabase unconfigured (the local-preview fallback dataset), when a client GETs \"/\", then the page renders all 3 fallback feedback items.",
+      "run": {
+        "command": ["node", "scripts/web-check-feedback-board.mjs"]
+      },
+      "expect": {
+        "exit_code": 0
+      },
+      "seed": null,
+      "timeout_s": 90
+    }
+  ],
+  "sources": ["examples/flagship-feedback-board/scripts/web-check-feedback-board.mjs"]
+}
