@@ -1,6 +1,10 @@
 # SPEC — O12 Behavioral Acceptance (the fourth gate axis)
 
-> **Status:** pinned for execution, awaiting owner approval (drafted 2026-07-09).
+> **Status:** SHIPPED 2026-07-10 — all four WPs landed and live-proven per §10:
+> WP1 `../sembl` 5d6066a, WP2 b1f444b, WP3 2a6dfc2 (flagship web BLOCK/PASS),
+> WP4 8560bf9 (foundry invariant BLOCK/PASS, forge 1.7.1 local). Re-verify
+> against git log before trusting this line. Recorded follow-on (not built):
+> sandbox prepare/install step so dep-needing checks run inside the L4 clone.
 > **Ledger:** implements O12 (`PROCESS-ACTION-PLAN.md` §5) + PRODUCT §"The engine
 > addition". Roadmap item #1 (highest-value engine work). Stays within O1/O3/O8;
 > adds no new LLM pattern.
