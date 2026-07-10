@@ -1,0 +1,18 @@
+{
+  "checks": [
+    {
+      "id": "vault-invariant-holds",
+      "kind": "invariant",
+      "profile": "contract",
+      "description": "Given the Vault contract, when random deposit()/withdraw() sequences are fuzzed, then totalDeposited never exceeds CAP.",
+      "run": {
+        "command": ["forge", "test", "--match-contract", "VaultInvariant"]
+      },
+      "expect": {
+        "exit_code": 0
+      },
+      "seed": 42
+    }
+  ],
+  "sources": ["examples/contract-invariant/test/Vault.invariant.t.sol"]
+}

@@ -146,12 +146,20 @@ def run_checks(cfg=None, repo: str = ".") -> list[Check]:
             "" if node_ok else
             "install Node.js (https://nodejs.org) — the web acceptance runner "
             "drives a Node test-runner invocation", required=False))
+    elif acceptance == "contract":
+        forge_path = shutil.which("forge")
+        forge_ok = forge_path is not None
+        checks.append(Check(
+            f"acceptance: {acceptance}", forge_ok,
+            forge_path or "forge not found",
+            "" if forge_ok else
+            "install Foundry (https://getfoundry.sh)", required=False))
     else:
         checks.append(Check(
             f"acceptance: {acceptance}", False, "not available in this build",
             f"the '{acceptance}' acceptance runner isn't implemented yet (only "
-            "'command', 'web', and 'none' exist) — set acceptance: command, "
-            "acceptance: web, or acceptance: none",
+            "'command', 'web', 'contract', and 'none' exist) — set acceptance: "
+            "command, acceptance: web, acceptance: contract, or acceptance: none",
             required=False))
 
     # --- context graph (only when context: symgraph) ---
