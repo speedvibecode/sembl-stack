@@ -1,622 +1,363 @@
 <!--
-  sembl IDE — shell mockup (design reference, 2026-07-10)
+  sembl IDE — shell mockup v2 (design reference, 2026-07-10)
 
-  Static high-fidelity mockup of the one-window/three-region shell defined in
-  docs/PRODUCT-sembl-ide.md §"The screen": Conversation (center, the operator
-  agent — O11), Truth (right: verdict, acceptance, drift, SpecGraph), Stage
-  (preview-as-evidence, bound to the run). Top strip = the L0–L8 adapter chips,
-  every chip a picker (seats table).
+  v1 (dense Linear/Warp register) was rejected by the owner: "mass slop,
+  sci-fi theme is stupid — use codex as theme, as simple as possible."
+  v2 is Codex-minimal: plain ground, quiet 1px borders, system sans,
+  generous whitespace, black primary button, small status dots. Cyan
+  #7cd4df remains the single accent, used sparingly.
 
-  All content is REAL output from the O12 live-proof runs of 2026-07-10 (run ids,
-  verdict reasons, acceptance evidence) — the mockup renders truth, not lorem.
+  Owner requirements encoded here:
+  - instances sidebar: run multiple parallel loops (Codex task-list style)
+  - Spec graph / Code graph buttons in the top bar
+  - a REAL preview pane (preview-as-evidence), not a thumbnail
+  - uncluttered above all
 
-  Design tokens are law here: single chromatic accent = sembl cyan #7cd4df;
-  semantic PASS/BLOCK colors are separate from the accent; dense dev-tool
-  register (Linear / Warp / Raycast), system font stacks, 13px base.
-
-  This file is the source of the shared design artifact and is written in
-  artifact fragment form (no <html>/<head>/<body> wrapper).
+  Regions still map to PRODUCT-sembl-ide.md: conversation (center),
+  truth folded INTO the conversation as plain checklists/verdict lines,
+  stage = the preview pane (right). Content is real O12 run output.
 -->
 <title>sembl IDE — shell mockup</title>
 <style>
   :root {
-    --bg: #0b0f11;
-    --panel: #10161a;
-    --panel-2: #151d22;
-    --line: #1f2a31;
-    --line-soft: #182228;
-    --text: #d7e0e5;
-    --muted: #7e8f99;
-    --faint: #55656e;
+    --bg: #fafafa;
+    --surface: #ffffff;
+    --border: #e6e6e6;
+    --border-soft: #f0f0f0;
+    --text: #171717;
+    --muted: #737373;
+    --faint: #a3a3a3;
     --accent: #7cd4df;
-    --accent-ink: #7cd4df;
-    --accent-wash: rgba(124, 212, 223, 0.10);
-    --accent-line: rgba(124, 212, 223, 0.35);
-    --pass: #3dd68c;
-    --pass-wash: rgba(61, 214, 140, 0.10);
-    --block: #f2555a;
-    --block-wash: rgba(242, 85, 90, 0.10);
-    --warn: #e8b13f;
-    --warn-wash: rgba(232, 177, 63, 0.10);
+    --accent-ink: #12798a;
+    --pass: #1a9e5c;
+    --block: #d43c40;
+    --hover: #f4f4f4;
     --sans: ui-sans-serif, -apple-system, "Segoe UI", "Helvetica Neue", sans-serif;
-    --mono: ui-monospace, "Cascadia Code", "JetBrains Mono", "SF Mono", Consolas, monospace;
-    --shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+    --mono: ui-monospace, "Cascadia Code", "SF Mono", Consolas, monospace;
   }
-  @media (prefers-color-scheme: light) {
+  @media (prefers-color-scheme: dark) {
     :root {
-      --bg: #eef2f4;
-      --panel: #ffffff;
-      --panel-2: #f5f8f9;
-      --line: #d9e2e6;
-      --line-soft: #e4ebee;
-      --text: #17232a;
-      --muted: #5b6b74;
-      --faint: #8a9aa3;
-      --accent: #7cd4df;
-      --accent-ink: #147886;
-      --accent-wash: rgba(124, 212, 223, 0.16);
-      --accent-line: rgba(20, 120, 134, 0.35);
-      --pass: #14855a;
-      --pass-wash: rgba(20, 133, 90, 0.08);
-      --block: #cf3338;
-      --block-wash: rgba(207, 51, 56, 0.07);
-      --warn: #9a6d0b;
-      --warn-wash: rgba(154, 109, 11, 0.08);
-      --shadow: 0 8px 28px rgba(23, 35, 42, 0.12);
+      --bg: #181818; --surface: #212121; --border: #313131; --border-soft: #2a2a2a;
+      --text: #ececec; --muted: #9b9b9b; --faint: #6d6d6d;
+      --accent: #7cd4df; --accent-ink: #7cd4df;
+      --pass: #3fce85; --block: #e5686c; --hover: #2a2a2a;
     }
   }
   :root[data-theme="dark"] {
-    --bg: #0b0f11; --panel: #10161a; --panel-2: #151d22; --line: #1f2a31;
-    --line-soft: #182228; --text: #d7e0e5; --muted: #7e8f99; --faint: #55656e;
+    --bg: #181818; --surface: #212121; --border: #313131; --border-soft: #2a2a2a;
+    --text: #ececec; --muted: #9b9b9b; --faint: #6d6d6d;
     --accent: #7cd4df; --accent-ink: #7cd4df;
-    --accent-wash: rgba(124, 212, 223, 0.10); --accent-line: rgba(124, 212, 223, 0.35);
-    --pass: #3dd68c; --pass-wash: rgba(61, 214, 140, 0.10);
-    --block: #f2555a; --block-wash: rgba(242, 85, 90, 0.10);
-    --warn: #e8b13f; --warn-wash: rgba(232, 177, 63, 0.10);
-    --shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+    --pass: #3fce85; --block: #e5686c; --hover: #2a2a2a;
   }
   :root[data-theme="light"] {
-    --bg: #eef2f4; --panel: #ffffff; --panel-2: #f5f8f9; --line: #d9e2e6;
-    --line-soft: #e4ebee; --text: #17232a; --muted: #5b6b74; --faint: #8a9aa3;
-    --accent: #7cd4df; --accent-ink: #147886;
-    --accent-wash: rgba(124, 212, 223, 0.16); --accent-line: rgba(20, 120, 134, 0.35);
-    --pass: #14855a; --pass-wash: rgba(20, 133, 90, 0.08);
-    --block: #cf3338; --block-wash: rgba(207, 51, 56, 0.07);
-    --warn: #9a6d0b; --warn-wash: rgba(154, 109, 11, 0.08);
-    --shadow: 0 8px 28px rgba(23, 35, 42, 0.12);
+    --bg: #fafafa; --surface: #ffffff; --border: #e6e6e6; --border-soft: #f0f0f0;
+    --text: #171717; --muted: #737373; --faint: #a3a3a3;
+    --accent: #7cd4df; --accent-ink: #12798a;
+    --pass: #1a9e5c; --block: #d43c40; --hover: #f4f4f4;
   }
 
   * { box-sizing: border-box; }
   body {
     margin: 0; background: var(--bg); color: var(--text);
-    font: 13px/1.5 var(--sans);
-    -webkit-font-smoothing: antialiased;
+    font: 14px/1.6 var(--sans); -webkit-font-smoothing: antialiased;
   }
-  .frame {
-    max-width: 1480px; margin: 24px auto; padding: 0 20px;
+  .app {
+    max-width: 1440px; margin: 28px auto; padding: 0 20px;
   }
-  .caption {
-    display: flex; align-items: baseline; gap: 12px; margin: 0 2px 10px;
-  }
-  .caption h1 { font-size: 14px; font-weight: 600; margin: 0; letter-spacing: 0.01em; }
-  .caption span { color: var(--muted); font-size: 12px; }
-  .caption .tag {
-    margin-left: auto; font: 11px var(--mono); color: var(--accent-ink);
-    background: var(--accent-wash); border: 1px solid var(--accent-line);
-    border-radius: 4px; padding: 2px 8px;
-  }
+  .note { color: var(--muted); font-size: 12.5px; margin: 0 2px 10px; }
 
   .window {
-    background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
-    box-shadow: var(--shadow); overflow: hidden;
-    display: grid;
-    grid-template-rows: auto auto 1fr;
-    height: 860px;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+    overflow: hidden; height: 840px;
+    display: grid; grid-template-rows: auto 1fr;
   }
 
-  /* ---------- title bar ---------- */
-  .titlebar {
-    display: flex; align-items: center; gap: 10px;
-    padding: 8px 14px; border-bottom: 1px solid var(--line);
-    background: var(--panel-2);
-  }
-  .dots { display: flex; gap: 6px; }
-  .dots i { width: 10px; height: 10px; border-radius: 50%; background: var(--line); display: block; }
-  .titlebar .app {
-    font: 600 12px var(--sans); letter-spacing: 0.02em;
-  }
-  .titlebar .app b { color: var(--accent-ink); font-weight: 700; }
-  .titlebar .repo { font: 11px var(--mono); color: var(--muted); }
-  .titlebar .right { margin-left: auto; display: flex; gap: 8px; align-items: center; }
-  .run-badge {
-    font: 11px var(--mono); color: var(--muted);
-    display: flex; align-items: center; gap: 6px;
-  }
-  .run-badge .live {
-    width: 7px; height: 7px; border-radius: 50%; background: var(--accent);
-    box-shadow: 0 0 0 3px var(--accent-wash);
-  }
-
-  /* ---------- L0–L8 strip ---------- */
-  .strip {
-    display: flex; align-items: stretch; gap: 6px;
-    padding: 8px 14px; border-bottom: 1px solid var(--line);
-    overflow-x: auto; background: var(--panel);
-  }
-  .chip {
-    position: relative;
-    border: 1px solid var(--line); border-radius: 6px;
-    padding: 4px 9px 5px; min-width: 86px; cursor: pointer;
-    background: var(--panel-2); flex: 0 0 auto;
-    transition: border-color 120ms ease;
-  }
-  .chip:hover { border-color: var(--accent-line); }
-  .chip .layer {
-    display: block; font: 600 9px var(--sans); letter-spacing: 0.09em;
-    text-transform: uppercase; color: var(--faint); margin-bottom: 1px;
-  }
-  .chip .adapter {
-    font: 12px var(--mono); color: var(--text);
-    display: flex; align-items: center; gap: 5px;
-  }
-  .chip .adapter::after {
-    content: ""; width: 7px; height: 7px; margin-left: auto;
-    border-right: 1.4px solid var(--faint); border-bottom: 1.4px solid var(--faint);
-    transform: rotate(45deg) translateY(-2px);
-  }
-  .chip.accent { border-color: var(--accent-line); background: var(--accent-wash); }
-  .chip.accent .adapter { color: var(--accent-ink); }
-
-  /* the open picker on the executor chip — every chip is a picker */
-  .chip.open { border-color: var(--accent-line); }
-  .picker {
-    position: absolute; top: calc(100% + 6px); left: 0; z-index: 30;
-    background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
-    box-shadow: var(--shadow); min-width: 190px; padding: 4px;
-  }
-  .picker .hd {
-    font: 600 9px var(--sans); letter-spacing: 0.09em; text-transform: uppercase;
-    color: var(--faint); padding: 5px 8px 3px;
-  }
-  .picker .opt {
+  /* ---- top bar ---- */
+  .top {
     display: flex; align-items: center; gap: 8px;
-    font: 12px var(--mono); padding: 5px 8px; border-radius: 5px; color: var(--text);
+    padding: 10px 16px; border-bottom: 1px solid var(--border);
   }
-  .picker .opt:hover { background: var(--accent-wash); }
-  .picker .opt .mark { width: 12px; color: var(--accent-ink); font-weight: 700; }
-  .picker .opt .note { margin-left: auto; font: 10px var(--sans); color: var(--faint); }
-  .picker .foot {
-    border-top: 1px solid var(--line-soft); margin-top: 3px; padding: 5px 8px;
-    font: 10px var(--sans); color: var(--faint);
+  .top .brand { font-weight: 600; font-size: 14px; }
+  .top .repo { color: var(--muted); font-size: 13px; }
+  .top .spacer { flex: 1; }
+  .tbtn {
+    font: 500 13px var(--sans); color: var(--text);
+    background: transparent; border: 1px solid var(--border); border-radius: 8px;
+    padding: 5px 12px; cursor: pointer;
+  }
+  .tbtn:hover { background: var(--hover); }
+  .tbtn.primary {
+    background: var(--text); color: var(--surface); border-color: var(--text);
+  }
+  .tbtn:focus-visible { outline: 2px solid var(--accent-ink); outline-offset: 2px; }
+
+  /* ---- body: sidebar | conversation | preview ---- */
+  .cols {
+    display: grid; grid-template-columns: 250px minmax(0, 1fr) 430px; min-height: 0;
   }
 
-  /* ---------- main: conversation | truth+stage ---------- */
-  .main {
-    display: grid; grid-template-columns: 1fr 400px; min-height: 0;
+  /* sidebar: instances */
+  .side {
+    border-right: 1px solid var(--border); padding: 12px 8px; overflow-y: auto;
+  }
+  .side .hd {
+    font-size: 12.5px; color: var(--muted); padding: 2px 10px 8px;
+  }
+  .run-row {
+    display: flex; gap: 9px; align-items: flex-start;
+    padding: 9px 10px; border-radius: 8px; cursor: pointer;
+  }
+  .run-row:hover { background: var(--hover); }
+  .run-row.active { background: var(--hover); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 6px; flex: 0 0 auto; }
+  .dot.running { background: var(--accent); }
+  .dot.pass { background: var(--pass); }
+  .dot.block { background: var(--block); }
+  .run-row .t { font-size: 13px; line-height: 1.4; }
+  .run-row .m { font-size: 11.5px; color: var(--faint); margin-top: 1px; }
+  .side .new {
+    display: block; width: calc(100% - 4px); margin: 4px 2px 10px;
+    text-align: center;
   }
 
   /* conversation */
-  .convo {
-    display: flex; flex-direction: column; min-width: 0;
-    border-right: 1px solid var(--line);
-  }
-  .convo-scroll { flex: 1; overflow-y: auto; padding: 18px 22px 8px; }
-  .msg { max-width: 720px; margin: 0 auto 16px; }
-  .msg .who {
-    font: 600 9px var(--sans); letter-spacing: 0.09em; text-transform: uppercase;
-    color: var(--faint); margin-bottom: 4px; display: flex; gap: 8px; align-items: baseline;
-  }
-  .msg .who .seat { color: var(--faint); font-weight: 400; letter-spacing: 0.02em; text-transform: none; font-size: 10px; }
-  .msg.human .who { color: var(--muted); }
-  .msg p { margin: 0 0 6px; max-width: 65ch; }
-  .msg.human p {
-    background: var(--panel-2); border: 1px solid var(--line);
-    border-radius: 8px; padding: 8px 12px; display: inline-block;
-  }
+  .convo { display: flex; flex-direction: column; min-width: 0; }
+  .thread { flex: 1; overflow-y: auto; padding: 26px 0 10px; }
+  .m-wrap { max-width: 640px; margin: 0 auto 22px; padding: 0 28px; }
 
-  .toolcall {
-    display: inline-flex; align-items: center; gap: 7px; margin: 2px 6px 6px 0;
-    font: 11px var(--mono); color: var(--accent-ink);
-    background: var(--accent-wash); border: 1px solid var(--accent-line);
-    border-radius: 5px; padding: 3px 9px;
+  .u-msg {
+    background: var(--hover); border-radius: 14px;
+    padding: 9px 14px; display: inline-block; max-width: 85%;
   }
-  .toolcall .st { color: var(--muted); font-family: var(--sans); font-size: 10px; }
+  .m-wrap.user { text-align: right; }
 
-  .proposal {
-    border: 1px solid var(--line); border-radius: 8px; overflow: hidden;
-    background: var(--panel-2); margin: 4px 0 8px; max-width: 640px;
-  }
-  .proposal .hd {
-    display: flex; align-items: center; gap: 8px;
-    padding: 7px 12px; border-bottom: 1px solid var(--line-soft);
-    font: 600 9px var(--sans); letter-spacing: 0.09em; text-transform: uppercase; color: var(--faint);
-  }
-  .proposal .hd .schema { margin-left: auto; font: 10px var(--mono); color: var(--accent-ink); text-transform: none; letter-spacing: 0; }
-  .proposal table { border-collapse: collapse; width: 100%; }
-  .proposal td {
-    padding: 5px 12px; font: 12px var(--mono); vertical-align: top;
-    border-bottom: 1px solid var(--line-soft);
-  }
-  .proposal tr:last-child td { border-bottom: 0; }
-  .proposal td.k { color: var(--faint); width: 130px; font-family: var(--sans); font-size: 11px; padding-top: 6px; }
-  .proposal .forbidden { color: var(--block); }
-  .proposal .actions {
-    display: flex; gap: 8px; padding: 9px 12px; border-top: 1px solid var(--line-soft);
-  }
-  .btn {
-    font: 600 11px var(--sans); border-radius: 6px; padding: 5px 14px;
-    border: 1px solid var(--line); background: var(--panel); color: var(--text); cursor: pointer;
-  }
-  .btn.primary {
-    background: var(--accent); border-color: var(--accent); color: #0b0f11;
-  }
-  .btn:focus-visible, .chip:focus-visible { outline: 2px solid var(--accent-ink); outline-offset: 2px; }
+  .a-msg p { margin: 0 0 10px; max-width: 62ch; }
 
-  .events {
-    border-left: 2px solid var(--accent-line);
-    background: var(--accent-wash);
-    border-radius: 0 8px 8px 0;
-    padding: 8px 14px; margin: 4px 0 8px; max-width: 640px;
+  .quiet-line {
+    font-size: 12.5px; color: var(--muted); margin: 2px 0 10px;
+    display: flex; gap: 6px; align-items: baseline;
   }
-  .events .hd {
-    font: 600 9px var(--sans); letter-spacing: 0.09em; text-transform: uppercase;
-    color: var(--accent-ink); margin-bottom: 5px;
-  }
-  .events ul { list-style: none; margin: 0; padding: 0; }
-  .events li {
-    font: 11.5px var(--mono); color: var(--muted); padding: 1.5px 0;
-    display: flex; gap: 8px; align-items: baseline;
-  }
-  .events li .t { color: var(--faint); font-size: 10.5px; min-width: 52px; font-variant-numeric: tabular-nums; }
-  .events li.verdict { color: var(--text); }
-  .events li .k-block { color: var(--block); font-weight: 700; }
-  .events li .k-pass { color: var(--pass); font-weight: 700; }
+  .quiet-line code { font: 12px var(--mono); color: var(--muted); }
+  .quiet-line a { color: var(--accent-ink); text-decoration: none; }
 
-  .verdict-quote {
-    border: 1px solid var(--line); border-left: 3px solid var(--block);
-    background: var(--block-wash); border-radius: 6px;
-    font: 11.5px var(--mono); color: var(--text);
-    padding: 8px 12px; margin: 4px 0 8px; max-width: 640px;
-    overflow-x: auto; white-space: pre;
-  }
-
-  .composer {
-    border-top: 1px solid var(--line); padding: 12px 22px 14px; background: var(--panel);
-  }
-  .composer .box {
-    max-width: 720px; margin: 0 auto;
-    border: 1px solid var(--line); border-radius: 8px; background: var(--panel-2);
-    padding: 10px 14px; color: var(--faint); font-size: 13px;
-    display: flex; align-items: center; gap: 10px;
-  }
-  .composer .box .caret-blink { width: 1.5px; height: 15px; background: var(--accent); }
-  .composer .hint {
-    max-width: 720px; margin: 6px auto 0; font-size: 10.5px; color: var(--faint);
-    display: flex; gap: 14px;
-  }
-  .composer .hint code { font: 10.5px var(--mono); color: var(--muted); }
-
-  /* ---------- right column: truth + stage ---------- */
-  .right-col { display: grid; grid-template-rows: auto 1fr auto; min-height: 0; background: var(--panel); }
-
-  .truth { overflow-y: auto; min-height: 0; }
-  .panel-hd {
-    display: flex; align-items: center; gap: 8px;
-    padding: 9px 14px 8px; border-bottom: 1px solid var(--line-soft);
-    font: 600 9px var(--sans); letter-spacing: 0.09em; text-transform: uppercase; color: var(--faint);
-    position: sticky; top: 0; background: var(--panel); z-index: 5;
-  }
-  .panel-hd .aux { margin-left: auto; font: 10px var(--mono); color: var(--faint); text-transform: none; letter-spacing: 0; }
-
-  .verdict-card { padding: 12px 14px; border-bottom: 1px solid var(--line); }
-  .verdict-line { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
-  .verdict-pill {
-    font: 700 12px var(--mono); letter-spacing: 0.06em;
-    color: var(--block); background: var(--block-wash);
-    border: 1px solid var(--block); border-radius: 5px; padding: 3px 10px;
-  }
-  .verdict-line .sha { font: 10.5px var(--mono); color: var(--faint); }
-  .verdict-line .sha b { color: var(--muted); font-weight: 500; }
-  .reasons { list-style: none; margin: 0; padding: 0; }
-  .reasons li {
-    font: 11.5px var(--mono); padding: 3px 0 3px 14px; position: relative; color: var(--text);
-  }
-  .reasons li::before {
-    content: ""; position: absolute; left: 0; top: 9px;
-    width: 6px; height: 6px; border-radius: 2px; background: var(--block);
-  }
-  .reasons li.behavioral::before { background: var(--warn); }
-  .reasons li .axis { color: var(--faint); font-size: 10px; font-family: var(--sans); margin-left: 6px; }
-
-  .accept { padding: 4px 0 6px; border-bottom: 1px solid var(--line); }
-  .check {
-    display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: baseline;
-    padding: 6px 14px;
-  }
-  .check + .check { border-top: 1px solid var(--line-soft); }
-  .check .outcome { font: 700 10px var(--mono); border-radius: 4px; padding: 1px 7px; }
-  .check .outcome.pass { color: var(--pass); background: var(--pass-wash); border: 1px solid var(--pass); }
-  .check .outcome.fail { color: var(--block); background: var(--block-wash); border: 1px solid var(--block); }
-  .check .cid { font: 11.5px var(--mono); color: var(--text); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .check .meta { font: 10px var(--mono); color: var(--faint); font-variant-numeric: tabular-nums; }
-  .check .evidence {
-    grid-column: 2 / 4; font: 10.5px var(--mono); color: var(--muted);
-    border-left: 2px solid var(--line); padding-left: 8px; margin-top: 2px;
-    overflow-x: auto; white-space: nowrap;
-  }
-
-  .drift-row {
-    display: flex; align-items: center; gap: 10px; padding: 8px 14px;
-    border-bottom: 1px solid var(--line-soft); font-size: 12px;
-  }
-  .drift-row .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--warn); flex: 0 0 auto; }
-  .drift-row .key { font: 11.5px var(--mono); color: var(--text); }
-  .drift-row .what { color: var(--muted); font-size: 11px; }
-  .drift-row .act {
-    margin-left: auto; font: 600 10px var(--sans); color: var(--accent-ink);
-    border: 1px solid var(--accent-line); border-radius: 4px; padding: 2px 8px; cursor: pointer;
-    background: transparent;
-  }
-  .specgraph {
-    display: flex; gap: 14px; padding: 9px 14px 12px; border-bottom: 1px solid var(--line);
-  }
-  .sg-stat { font: 10.5px var(--sans); color: var(--muted); }
-  .sg-stat b { display: block; font: 600 15px var(--mono); color: var(--text); font-variant-numeric: tabular-nums; }
-
-  /* stage */
-  .stage { border-top: 1px solid var(--line); background: var(--panel); }
-  .stage .panel-hd { position: static; }
-  .stage .panel-hd .toggle {
-    margin-left: auto; display: inline-flex; align-items: center; gap: 6px;
-    font: 10px var(--sans); color: var(--accent-ink); text-transform: none; letter-spacing: 0;
-  }
-  .stage .panel-hd .toggle .sw {
-    width: 22px; height: 12px; border-radius: 7px; background: var(--accent); position: relative;
-  }
-  .stage .panel-hd .toggle .sw::after {
-    content: ""; position: absolute; right: 2px; top: 2px; width: 8px; height: 8px;
-    border-radius: 50%; background: var(--panel);
-  }
-  .browser {
-    margin: 10px 14px 8px; border: 1px solid var(--line); border-radius: 8px; overflow: hidden;
-    background: var(--panel-2);
-  }
-  .browser .url {
-    display: flex; align-items: center; gap: 8px;
-    border-bottom: 1px solid var(--line-soft); padding: 5px 10px;
-    font: 10.5px var(--mono); color: var(--muted);
-  }
-  .browser .url .dotset { display: flex; gap: 4px; }
-  .browser .url .dotset i { width: 6px; height: 6px; border-radius: 50%; background: var(--line); display: block; }
-  .board { padding: 10px; display: grid; gap: 6px; }
   .card {
-    border: 1px solid var(--line-soft); border-radius: 6px; padding: 7px 10px;
-    background: var(--panel);
+    border: 1px solid var(--border); border-radius: 10px; margin: 4px 0 10px;
+    overflow: hidden;
   }
-  .card .t { font-size: 11.5px; font-weight: 600; }
-  .card .m { display: flex; gap: 6px; margin-top: 4px; }
-  .pill { font: 600 8.5px var(--sans); letter-spacing: 0.06em; text-transform: uppercase;
-    border-radius: 3px; padding: 1px 6px; color: var(--muted); border: 1px solid var(--line); }
-  .pill.hi { color: var(--warn); border-color: var(--warn); background: var(--warn-wash); }
-  .stage .bind {
-    display: flex; align-items: center; gap: 8px; margin: 0 14px 12px;
-    font: 10px var(--mono); color: var(--faint);
+  .card .row {
+    display: flex; gap: 10px; padding: 8px 14px; font-size: 13px;
+    border-bottom: 1px solid var(--border-soft);
   }
-  .stage .bind .cam {
-    font: 600 10px var(--sans); color: var(--accent-ink); border: 1px solid var(--accent-line);
-    border-radius: 4px; padding: 2px 8px; margin-left: auto; cursor: pointer; background: transparent;
+  .card .row:last-of-type { border-bottom: 0; }
+  .card .k { color: var(--muted); width: 92px; flex: 0 0 auto; }
+  .card .v code { font: 12px var(--mono); }
+  .card .actions {
+    display: flex; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--border-soft);
+    background: var(--bg);
   }
 
-  .legend {
-    max-width: 1480px; margin: 14px auto 40px; padding: 0 22px;
-    display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px;
+  .verdict { margin: 4px 0 10px; }
+  .verdict .line {
+    display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 13.5px;
   }
-  .legend .cell { font-size: 11.5px; color: var(--muted); line-height: 1.55; }
-  .legend .cell b { color: var(--text); font-weight: 600; display: block; margin-bottom: 2px; font-size: 12px; }
-  .legend .cell code { font: 10.5px var(--mono); color: var(--accent-ink); }
+  .verdict .line .dot { margin-top: 0; }
+  .verdict ul { margin: 6px 0 0; padding-left: 20px; color: var(--muted); font-size: 13px; }
+  .verdict .why { font: 12px var(--mono); color: var(--muted); background: var(--bg);
+    border: 1px solid var(--border-soft); border-radius: 8px; padding: 8px 12px;
+    margin-top: 8px; overflow-x: auto; white-space: pre; }
 
-  @media (max-width: 1080px) {
-    .main { grid-template-columns: 1fr; }
-    .convo { border-right: 0; border-bottom: 1px solid var(--line); }
+  .checks { margin: 4px 0 10px; font-size: 13px; }
+  .checks .c { display: flex; gap: 8px; align-items: baseline; padding: 2px 0; }
+  .checks .ok { color: var(--pass); }
+  .checks .bad { color: var(--block); }
+  .checks .meta { color: var(--faint); font-size: 12px; margin-left: auto; }
+
+  .composer { padding: 14px 28px 20px; }
+  .composer .box {
+    max-width: 640px; margin: 0 auto;
+    border: 1px solid var(--border); border-radius: 14px; background: var(--surface);
+    padding: 12px 16px; color: var(--faint); font-size: 14px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+  }
+
+  /* preview */
+  .preview {
+    border-left: 1px solid var(--border); display: flex; flex-direction: column; min-height: 0;
+  }
+  .preview .bar {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 14px; border-bottom: 1px solid var(--border);
+    font-size: 12.5px; color: var(--muted);
+  }
+  .preview .bar .url { font: 12px var(--mono); color: var(--muted); }
+  .preview .bar .attempt { margin-left: auto; }
+  .preview .live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--pass); }
+  .preview .page { flex: 1; overflow-y: auto; background: var(--bg); padding: 22px; }
+
+  /* the rendered app inside the preview (feedback board) */
+  .fb { max-width: 360px; margin: 0 auto; }
+  .fb h2 { font-size: 16px; margin: 0 0 3px; }
+  .fb .sub { color: var(--muted); font-size: 12.5px; margin: 0 0 16px; }
+  .fb-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+    padding: 12px 14px; margin-bottom: 10px;
+  }
+  .fb-card .t { font-weight: 600; font-size: 13.5px; }
+  .fb-card .b { color: var(--muted); font-size: 12.5px; margin-top: 3px; line-height: 1.5; }
+  .fb-card .tags { display: flex; gap: 6px; margin-top: 8px; }
+  .tag {
+    font-size: 11px; color: var(--muted);
+    border: 1px solid var(--border); border-radius: 5px; padding: 1px 7px;
+  }
+  .fb-card.missing { border-style: dashed; background: transparent; }
+  .fb-card.missing .t { color: var(--block); font-weight: 500; }
+
+  .preview .foot {
+    border-top: 1px solid var(--border); padding: 9px 14px;
+    font-size: 12px; color: var(--faint);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .preview .foot .cap { margin-left: auto; color: var(--accent-ink); cursor: pointer; }
+
+  @media (max-width: 1180px) {
+    .cols { grid-template-columns: 220px 1fr; }
+    .preview { display: none; }
     .window { height: auto; }
-    .legend { grid-template-columns: 1fr; }
   }
-  @media (prefers-reduced-motion: reduce) {
-    * { transition: none !important; }
-  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 
-<div class="frame">
-  <div class="caption">
-    <h1>sembl IDE — the shell</h1>
-    <span>one window, three regions · PRODUCT-sembl-ide.md v2</span>
-    <span class="tag">design reference · not built yet</span>
-  </div>
+<div class="app">
+  <p class="note">sembl IDE — shell mockup v2 · codex-simple · design reference, nothing here is built yet</p>
 
   <div class="window">
 
-    <!-- title bar -->
-    <div class="titlebar">
-      <div class="dots"><i></i><i></i><i></i></div>
-      <span class="app"><b>sembl</b> ide</span>
-      <span class="repo">~/projects/feedback-board · master</span>
-      <div class="right">
-        <span class="run-badge"><span class="live"></span>run 20260710-113924 · attempt 1 · L5 gate</span>
-      </div>
+    <!-- top bar -->
+    <div class="top">
+      <span class="brand">sembl</span>
+      <span class="repo">feedback-board</span>
+      <span class="spacer"></span>
+      <button class="tbtn">Spec graph</button>
+      <button class="tbtn">Code graph</button>
+      <button class="tbtn">Preview</button>
+      <button class="tbtn primary">New run</button>
     </div>
 
-    <!-- the L0–L8 strip: every chip a picker (seats table) -->
-    <div class="strip">
-      <div class="chip"><span class="layer">L0 spec</span><span class="adapter">sembl</span></div>
-      <div class="chip"><span class="layer">L1 context</span><span class="adapter">cbm</span></div>
-      <div class="chip open"><span class="layer">L3 executor</span><span class="adapter">claude</span>
-        <div class="picker">
-          <div class="hd">executor seat — swap per run</div>
-          <div class="opt"><span class="mark">✓</span>claude</div>
-          <div class="opt"><span class="mark"></span>codex</div>
-          <div class="opt"><span class="mark"></span>opencode<span class="note">loop only</span></div>
-          <div class="opt"><span class="mark"></span>aider</div>
-          <div class="foot">or just say it: “run this one with codex”</div>
+    <div class="cols">
+
+      <!-- instances -->
+      <aside class="side">
+        <div class="hd">Runs</div>
+        <div class="run-row active">
+          <span class="dot running"></span>
+          <div>
+            <div class="t">Rate-limit the feedback API</div>
+            <div class="m">claude · attempt 2 · running</div>
+          </div>
         </div>
-      </div>
-      <div class="chip"><span class="layer">L4 sandbox</span><span class="adapter">worktree</span></div>
-      <div class="chip accent"><span class="layer">L4.5 acceptance</span><span class="adapter">web</span></div>
-      <div class="chip"><span class="layer">L5 gate</span><span class="adapter">sembl</span></div>
-      <div class="chip"><span class="layer">L6 review</span><span class="adapter">coderabbit</span></div>
-      <div class="chip"><span class="layer">L7 deploy</span><span class="adapter">vercel</span></div>
-      <div class="chip"><span class="layer">L8 postdeploy</span><span class="adapter">http</span></div>
-    </div>
+        <div class="run-row">
+          <span class="dot block"></span>
+          <div>
+            <div class="t">Vault deposit cap invariant</div>
+            <div class="m">codex · blocked · 1 reason</div>
+          </div>
+        </div>
+        <div class="run-row">
+          <span class="dot pass"></span>
+          <div>
+            <div class="t">Persist the export filter</div>
+            <div class="m">claude · merged 2:04 pm</div>
+          </div>
+        </div>
+        <div class="run-row">
+          <span class="dot pass"></span>
+          <div>
+            <div class="t">Calmer contrast on closed cards</div>
+            <div class="m">aider · merged 11:20 am</div>
+          </div>
+        </div>
+      </aside>
 
-    <div class="main">
-
-      <!-- ========== CONVERSATION (center, primary) ========== -->
+      <!-- conversation -->
       <section class="convo">
-        <div class="convo-scroll">
+        <div class="thread">
 
-          <div class="msg human">
-            <div class="who">you</div>
-            <p>add rate limiting to the feedback API</p>
+          <div class="m-wrap user">
+            <span class="u-msg">add rate limiting to the feedback API</span>
           </div>
 
-          <div class="msg">
-            <div class="who">operator <span class="seat">· any model · commits only through typed tools</span></div>
-            <span class="toolcall">propose_task <span class="st">→ fixed schema (O8)</span></span>
-            <div class="proposal">
-              <div class="hd">task proposal <span class="schema">awaiting your confirm</span></div>
-              <table>
-                <tr><td class="k">task</td><td>rate-limit POST /api/feedback: 5 req/min per IP, 429 + Retry-After</td></tr>
-                <tr><td class="k">editable</td><td>src/app/api/feedback/ · src/lib/rate-limit.ts (new)</td></tr>
-                <tr><td class="k">forbidden</td><td class="forbidden">src/lib/supabase.ts · .env* · acceptance.json</td></tr>
-                <tr><td class="k">acceptance</td><td>feedback-board-renders-fallback (web) · burst POST ⇒ 429 (new, web)</td></tr>
-              </table>
-              <div class="actions">
-                <button class="btn primary">Confirm task</button>
-                <button class="btn">Adjust bounds</button>
+          <div class="m-wrap">
+            <div class="a-msg">
+              <p>Here's the task I'd run — you confirm before anything executes.</p>
+              <div class="card">
+                <div class="row"><span class="k">Task</span><span class="v">Rate-limit POST /api/feedback — 5 requests/min per IP, respond 429 with Retry-After</span></div>
+                <div class="row"><span class="k">Can edit</span><span class="v"><code>src/app/api/feedback/</code> · <code>src/lib/rate-limit.ts</code> (new)</span></div>
+                <div class="row"><span class="k">Can't touch</span><span class="v"><code>src/lib/supabase.ts</code> · <code>.env*</code> · <code>acceptance.json</code></span></div>
+                <div class="row"><span class="k">Must pass</span><span class="v">board renders fallback items · burst POST returns 429</span></div>
+                <div class="actions">
+                  <button class="tbtn primary">Confirm and run</button>
+                  <button class="tbtn">Edit bounds</button>
+                </div>
               </div>
             </div>
-            <span class="toolcall">confirm_task <span class="st">→ task.yaml · bounds.json</span></span>
-            <span class="toolcall">run_loop <span class="st">→ running…</span></span>
           </div>
 
-          <div class="msg">
-            <div class="who" style="color: var(--accent-ink);">factory · event bus</div>
-            <div class="events">
-              <div class="hd">factory events since last turn</div>
-              <ul>
-                <li><span class="t">11:39:24</span>run started — attempt 1 (executor: claude)</li>
-                <li><span class="t">11:39:31</span>L3 execute · done — 2 files, +48 −3</li>
-                <li><span class="t">11:39:33</span>L4.5 acceptance · web@1 — 1 of 2 checks failed (31.4s)</li>
-                <li class="verdict"><span class="t">11:39:56</span>gate verdict: <span class="k-block">BLOCK</span> — 1 reason · bound to diff 44bdb15</li>
-              </ul>
+          <div class="m-wrap">
+            <div class="quiet-line">Ran the loop — attempt 1 finished in 32s · <a href="#">view run 20260710-113924</a></div>
+            <div class="verdict">
+              <div class="line"><span class="dot block"></span>Blocked by the gate</div>
+              <div class="checks">
+                <div class="c"><span class="bad">✗</span> board renders fallback items <span class="meta">31.4s</span></div>
+                <div class="c"><span class="ok">✓</span> burst POST returns 429 <span class="meta">2.1s</span></div>
+              </div>
+              <div class="why">rendered page is missing: "Invite review needs a status trail"</div>
             </div>
-          </div>
-
-          <div class="msg">
-            <div class="who">operator</div>
-            <p>The gate blocked attempt 1 — a behavioral break, not a trespass. The change edited only in-bounds files, but the acceptance check caught the board dropping one of its fallback items:</p>
-            <div class="verdict-quote">FAIL: rendered page is missing expected fallback feedback
-item(s): ["Invite review needs a status trail"]</div>
-            <p>The rate-limit middleware short-circuits the fallback fetch when Supabase is unconfigured. I'll scope the limiter to POST only and retry — the verdict, evidence and diff are pinned in the run record if you want to look first.</p>
-            <span class="toolcall">run_loop <span class="st">→ attempt 2 queued</span></span>
+            <div class="a-msg">
+              <p>The change stayed in bounds, but it broke a behavior you declared: the new middleware short-circuits the fallback fetch when Supabase isn't configured, so one board item disappears. You can see it missing in the preview. I'll scope the limiter to POST only and retry.</p>
+            </div>
+            <div class="quiet-line">Running attempt 2…</div>
           </div>
 
         </div>
 
         <div class="composer">
-          <div class="box"><span class="caret-blink"></span>Say it — propose, run, swap a seat, resolve drift…</div>
-          <div class="hint">
-            <span>freedom at the conversation, determinism at the commitment</span>
-            <code>⌘K seats</code><code>⌘J stage</code>
-          </div>
+          <div class="box">Message sembl — propose a change, check a run, swap a seat…</div>
         </div>
       </section>
 
-      <!-- ========== TRUTH (right) ========== -->
-      <aside class="right-col">
-        <div class="truth">
-          <div class="panel-hd">truth <span class="aux">run 20260710-113924</span></div>
-
-          <div class="verdict-card">
-            <div class="verdict-line">
-              <span class="verdict-pill">BLOCK</span>
-              <span class="sha">bound to <b>diff 44bdb15…9cd865</b></span>
+      <!-- preview -->
+      <aside class="preview">
+        <div class="bar">
+          <span class="live-dot"></span>
+          <span class="url">127.0.0.1:52144</span>
+          <span class="attempt">attempt 1 · sandbox</span>
+        </div>
+        <div class="page">
+          <div class="fb">
+            <h2>Feedback board</h2>
+            <p class="sub">Local preview — Supabase not configured, showing fallback data</p>
+            <div class="fb-card">
+              <div class="t">Export filter should persist</div>
+              <div class="b">Filters reset on every page load; keep the last selection.</div>
+              <div class="tags"><span class="tag">high</span><span class="tag">open</span></div>
             </div>
-            <ul class="reasons">
-              <li class="behavioral">behavioral: feedback-board-renders-fallback — exit 1 ≠ 0 <span class="axis">L4.5 · web@1</span></li>
-            </ul>
-          </div>
-
-          <div class="panel-hd">acceptance · 2 checks <span class="aux">declared in spec</span></div>
-          <div class="accept">
-            <div class="check">
-              <span class="outcome fail">FAIL</span>
-              <span class="cid">feedback-board-renders-fallback</span>
-              <span class="meta">web@1 · 31.4s</span>
-              <span class="evidence">missing expected fallback feedback item(s): ["Invite review needs a status trail"]</span>
+            <div class="fb-card">
+              <div class="t">Closed cards need calmer contrast</div>
+              <div class="b">Closed items pull too much attention in the list.</div>
+              <div class="tags"><span class="tag">low</span><span class="tag">closed</span></div>
             </div>
-            <div class="check">
-              <span class="outcome pass">PASS</span>
-              <span class="cid">vault-invariant-holds</span>
-              <span class="meta">contract@1 · seed 42 · 2.0s</span>
+            <div class="fb-card missing">
+              <div class="t">Missing: "Invite review needs a status trail"</div>
+              <div class="b">Expected by the acceptance check — this is why the gate blocked.</div>
             </div>
-          </div>
-
-          <div class="panel-hd">drift · 2 pending <span class="aux">daemon · haiku seat</span></div>
-          <div class="drift-row">
-            <span class="dot"></span>
-            <span class="key">api.rate-limit.headers</span>
-            <span class="what">manual edit, in-bounds → adopt?</span>
-            <button class="act">adopt</button>
-          </div>
-          <div class="drift-row">
-            <span class="dot"></span>
-            <span class="key">export.filter.persist</span>
-            <span class="what">spec ≠ code since e0a249f</span>
-            <button class="act">resolve</button>
-          </div>
-
-          <div class="panel-hd">specgraph</div>
-          <div class="specgraph">
-            <div class="sg-stat"><b>14</b>spec nodes</div>
-            <div class="sg-stat"><b>2</b>acceptance checks</div>
-            <div class="sg-stat"><b>6</b>runs recorded</div>
-            <div class="sg-stat"><b>0</b>overrides</div>
           </div>
         </div>
-
-        <!-- ========== STAGE (toggleable third region) ========== -->
-        <div class="stage">
-          <div class="panel-hd">stage · attempt 1 sandbox
-            <span class="toggle">live<span class="sw"></span></span>
-          </div>
-          <div class="browser">
-            <div class="url"><span class="dotset"><i></i><i></i><i></i></span>127.0.0.1:52144 · sandbox preview · hot-reload</div>
-            <div class="board">
-              <div class="card"><div class="t">Export filter should persist</div>
-                <div class="m"><span class="pill hi">high</span><span class="pill">open</span></div></div>
-              <div class="card"><div class="t">Closed cards need calmer contrast</div>
-                <div class="m"><span class="pill">low</span><span class="pill">closed</span></div></div>
-              <div class="card" style="border-style: dashed; opacity: 0.55;">
-                <div class="t" style="color: var(--block);">missing: “Invite review needs a status trail”</div>
-                <div class="m"><span class="pill">expected by acceptance</span></div></div>
-            </div>
-          </div>
-          <div class="bind">
-            evidence · bound to run 20260710-113924 · attempt 1
-            <button class="cam">mark flow “must keep working”</button>
-          </div>
+        <div class="foot">
+          Evidence — bound to run 20260710-113924, attempt 1
+          <span class="cap">Mark flow as must-keep-working</span>
         </div>
       </aside>
 
     </div>
-  </div>
-
-  <div class="legend">
-    <div class="cell"><b>Conversation — the primary interface (O11)</b>
-      A real agentic chat whose only hands are the nine typed engine tools. It proposes anything, commits only through <code>confirm_task</code> / <code>run_loop</code> / <code>resolve_drift</code> / <code>swap_adapter</code>. Verdicts and drift post <em>into</em> it via the event bus — the system talks back unprompted.</div>
-    <div class="cell"><b>Truth — where claims are verified at a glance</b>
-      The live verdict with its reasons, bound to the exact diff SHA it judged. The acceptance rail is O12's behavioral axis: real checks (<code>web@1</code>, <code>contract@1</code>) with real evidence — this panel renders the actual run store, never a model's opinion. The gate has no seat.</div>
-    <div class="cell"><b>Stage — preview-as-evidence</b>
-      Every attempt gets its own sandbox and its own live preview; what you see is bound to the verdict. Click through a flow and mark it “must keep working” — it becomes an executable acceptance check attached to the spec.</div>
   </div>
 </div>
