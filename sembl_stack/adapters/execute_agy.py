@@ -105,10 +105,10 @@ def _resolve_agy() -> list[str]:
     if not exe and os.name == "nt":
         local = os.environ.get("LOCALAPPDATA")
         if local:
-            for cand in (Path(local) / "Antigravity" / "agy.exe",
-                         Path(local) / "Antigravity" / "bin" / "agy.exe"):
-                if cand.is_file():
-                    return [str(cand)]
+            # the official installer's target (verified live 2026-07-12)
+            cand = Path(local) / "agy" / "bin" / "agy.exe"
+            if cand.is_file():
+                return [str(cand)]
     if not exe:
         return []
     low = exe.lower()

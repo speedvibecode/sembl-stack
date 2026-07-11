@@ -27,7 +27,7 @@ def test_resolve_prefers_path_binary(monkeypatch):
 def test_resolve_probes_localappdata_when_not_on_path(monkeypatch, tmp_path):
     monkeypatch.setattr(ag.shutil, "which", lambda _: None)
     monkeypatch.setattr(ag.os, "name", "nt")
-    exe = tmp_path / "Antigravity" / "agy.exe"
+    exe = tmp_path / "agy" / "bin" / "agy.exe"
     exe.parent.mkdir(parents=True)
     exe.write_bytes(b"MZ")
     monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
