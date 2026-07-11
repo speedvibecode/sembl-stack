@@ -110,8 +110,9 @@ _STARTER_TASK = """\
 text: "Add a VALUE constant to the app module, in scope, without touching infra."
 repo: "."
 # spec_path: "./specs/001-feature"   # optional: a Spec Kit feature dir / tasks.md
-# Without a spec_path, bounds come from bounds.json next to this file (scaffolded
-# by `sembl-stack init`).
+# Without a spec_path, bounds come from bounds.json in the task's REPO ROOT
+# (here repo is "." so it sits next to this file; if you point repo elsewhere,
+# move bounds.json into that repo's root too).
 """
 
 # The bounds contract for the starter task: the mock executor edits inside

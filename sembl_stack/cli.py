@@ -199,8 +199,9 @@ def _loop_cmd(task_file: str, config_path: str, stage_hold: bool):
         click.echo("hint: `sembl-stack doctor` checks your environment. The loop needs\n"
                    "  - the task's repo to be a git repository with at least one commit\n"
                    "    (the sandbox clones it), and\n"
-                   "  - a bounds source: a task spec_path, or a bounds.json next to the\n"
-                   "    task file (`sembl-stack init` scaffolds a working starter).")
+                   "  - a bounds source: a task spec_path, or a bounds.json in the\n"
+                   "    task's REPO ROOT — not merely next to the task file, unless\n"
+                   "    repo is \".\" (`sembl-stack init` scaffolds a working starter).")
         raise SystemExit(1)
 
     click.echo(f"engine: {result.engine}")
