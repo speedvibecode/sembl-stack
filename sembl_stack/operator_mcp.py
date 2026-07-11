@@ -23,6 +23,7 @@ Discipline encoded here, not just documented (SPEC-O11 §3.2):
 from __future__ import annotations
 
 import json
+import os
 import sys
 from pathlib import Path
 from typing import Any
@@ -148,7 +149,13 @@ def run_loop(repo: str, task_file: str) -> dict:
     if not tf.is_file():
         return {"error": f"task file not found: {tf}"}
     try:
-        cfg, task, _meta = cli.resolve_loop_inputs(str(tf))
+        # Anchor config resolution to `repo`, never to this server process's cwd:
+        # an MCP client can launch the server from anywhere (claude's own cwd, an
+        # IDE), and cwd-relative resolution silently loads THAT directory's
+        # sembl.stack.yaml instead of the target repo's (live-hit 2026-07-11:
+        # a scratch repo's run picked up sembl-stack's own dev config).
+        cfg, task, _meta = cli.resolve_loop_inputs(
+            str(tf), config_path=str(Path(repo) / "sembl.stack.yaml"))
         result = _run_loop(cfg, task)
     except RuntimeError as exc:
         return {"error": str(exc)}
@@ -306,6 +313,33 @@ def build_server() -> Any:
     return server
 
 
+def _detach_child_std_handles() -> None:
+    """Windows: point the process-level std handles at NUL so engine
+    subprocesses never inherit the MCP stdio pipes.
+
+    Without this, any child spawned from inside a tool call (git, executors,
+    the sembl CLI) inherits the server's stdin — the MCP protocol pipe — while
+    the transport keeps a synchronous read pending on it. The child's CRT
+    startup queries that handle (GetFileType) and blocks behind the pending
+    read: child waits for the client's next message, client waits for the
+    tool's reply. Deadlock, live-hit 2026-07-11 (run_loop froze forever on
+    `git status --porcelain`). SetStdHandle changes only what CreateProcess
+    hands to children; the transport reads fd 0 / writes fd 1 via the CRT and
+    is unaffected. stdout is detached too so a non-capturing child can never
+    corrupt the protocol stream; stderr stays inherited (it is the visible
+    error channel)."""
+    if sys.platform != "win32":
+        return
+    import ctypes
+    import msvcrt
+
+    # opened for the process lifetime, deliberately never closed
+    ctypes.windll.kernel32.SetStdHandle(
+        -10, msvcrt.get_osfhandle(os.open(os.devnull, os.O_RDONLY)))
+    ctypes.windll.kernel32.SetStdHandle(
+        -11, msvcrt.get_osfhandle(os.open(os.devnull, os.O_WRONLY)))
+
+
 def main() -> None:
     """Entry point: run the sembl-stack operator MCP server over stdio.
 
@@ -316,6 +350,7 @@ def main() -> None:
     except SystemExit as exc:
         print(str(exc), file=sys.stderr)
         raise SystemExit(1) from None
+    _detach_child_std_handles()
     server.run()
 
 

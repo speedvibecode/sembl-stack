@@ -13,6 +13,7 @@ import ast
 import importlib
 import inspect
 import json
+import subprocess
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -169,6 +170,67 @@ class TestRunLoop:
         assert result["verdict"]["status"] == "BLOCK"
         assert result["attempts"] == 1
         assert result["verdict"]["reasons"]
+
+    def test_repo_config_wins_over_server_cwd_config(self, tmp_path, monkeypatch):
+        """An MCP client can launch this server from ANY cwd. Config must come
+        from `repo`, never from whatever sembl.stack.yaml happens to sit in the
+        server process's cwd (live-hit 2026-07-11: a scratch repo's run loaded
+        sembl-stack's own dev config because the server inherited that cwd)."""
+        repo_dir = tmp_path / "repo"
+        repo_dir.mkdir()
+        repo = _scaffold_repo(repo_dir, monkeypatch, max_attempts=1)
+
+        elsewhere = tmp_path / "server-cwd"
+        elsewhere.mkdir()
+        decoy = (repo / "sembl.stack.yaml").read_text(encoding="utf-8").replace(
+            "max_attempts: 1", "max_attempts: 3")
+        (elsewhere / "sembl.stack.yaml").write_text(decoy, encoding="utf-8")
+        monkeypatch.chdir(elsewhere)
+
+        result = operator_mcp.run_loop(str(repo), "task.yaml")
+
+        # repo config (max_attempts: 1 -> final BLOCK) must win over the decoy
+        # in cwd (max_attempts: 3 -> the mock executor complies and PASSes)
+        assert result["verdict"]["status"] == "BLOCK"
+        assert result["attempts"] == 1
+
+
+class TestDetachChildStdHandles:
+    def test_main_wires_the_detach_before_serving(self):
+        src = inspect.getsource(operator_mcp.main)
+        assert "_detach_child_std_handles()" in src
+
+    @pytest.mark.skipif(sys.platform != "win32", reason="Windows std-handle semantics")
+    def test_grandchild_gets_nul_stdin_not_the_protocol_pipe(self):
+        """The stdio-deadlock lock (live-hit 2026-07-11): a child spawned from a
+        tool call inherits the server's stdin — the MCP protocol pipe with a
+        read pending on it — and wedges in CRT startup before main(). After
+        `_detach_child_std_handles()`, children get NUL: this grandchild's
+        stdin read EOFs instantly instead of blocking on our held-open pipe."""
+        code = (
+            "from sembl_stack.operator_mcp import _detach_child_std_handles\n"
+            "import subprocess, sys\n"
+            "_detach_child_std_handles()\n"
+            # capture_output like every engine call site: with any handle
+            # redirected, CreateProcess passes the process std handles, so the
+            # grandchild's stdin is whatever SetStdHandle installed
+            "p = subprocess.run([sys.executable, '-c',\n"
+            "                    'import sys; sys.exit(0 if sys.stdin.read() == \"\" else 3)'],\n"
+            "                   capture_output=True, timeout=60)\n"
+            "sys.exit(p.returncode)\n"
+        )
+        proc = subprocess.Popen(  # stdin held OPEN, like a waiting MCP client
+            [sys.executable, "-c", code], stdin=subprocess.PIPE,
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        try:
+            rc = proc.wait(timeout=90)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            pytest.fail("grandchild blocked on the parent's stdin pipe — "
+                        "std handles are leaking to children again")
+        finally:
+            proc.stdin.close()
+        assert rc == 0
 
 
 # --- 7. propose_task ----------------------------------------------------------------

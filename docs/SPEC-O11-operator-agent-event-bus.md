@@ -1,8 +1,14 @@
 # SPEC — O11 Operator Agent + Event Bus (the conversation as primary interface)
 
-> **Status:** APPROVED by owner 2026-07-10; execution dispatched (WP-A → WP-B → WP-C,
-> sequenced to avoid same-tree contention on loop.py/cli.py). Re-verify against
-> git log before trusting this line.
+> **Status:** all three WPs LANDED 2026-07-11 (WP-A `e6a6a26`, WP-B `4ded5d4`,
+> WP-C `062c4c2` + fix commit). §8 live-proof: the full gated golden path
+> (9 tools, BLOCK-as-BLOCK, PASS, event talk-back, empty state, claude-missing,
+> --print-mcp-config) was driven by the lead over REAL MCP stdio transport —
+> which surfaced and fixed a Windows stdio deadlock + a cwd config bleed the
+> direct-call tests could not see. STILL UNVERIFIED: the claude-conversation
+> leg (propose→confirm in a live claude session; whether `claude -p` permission-
+> prompts MCP tools) — blocked on expired claude CLI auth machine-wide; walk it
+> after the owner runs /login. Re-verify against git log before trusting this line.
 > **Ledger:** implements O11 (`PROCESS-ACTION-PLAN.md` §5, LOCKED 2026-07-09) + PRODUCT
 > §"Conversation" region. Roadmap item #2 (after O12). Stays within O1/O3/O8/O9;
 > O11 is the third and FINAL sanctioned LLM pattern — this build adds no fourth.

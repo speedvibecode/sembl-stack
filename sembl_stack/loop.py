@@ -181,10 +181,10 @@ def _source_tree_status(repo: str) -> set[str] | None:
     """
     try:
         proc = subprocess.run(
-            ["git", "status", "--porcelain"], cwd=repo,
+            ["git", "status", "--porcelain"], cwd=repo, timeout=30,
             capture_output=True, text=True, encoding="utf-8", errors="replace")
-    except (OSError, ValueError):
-        return None                                  # git missing / bad path: can't guard
+    except (OSError, ValueError, subprocess.TimeoutExpired):
+        return None                                  # git missing/wedged/bad path: can't guard
     if proc.returncode != 0:
         return None                                  # not a git repo: nothing to guard
     lines: set[str] = set()
