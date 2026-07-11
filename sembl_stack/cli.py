@@ -844,6 +844,23 @@ def explain(question, repo, executor, model, timeout, as_json):
 
 
 @main.command()
+@click.option("--repo", default=".")
+@click.option("--print-mcp-config", "print_mcp_config", is_flag=True,
+              help="Print the MCP config JSON (any MCP client can connect with it) and exit.")
+def operator(repo, print_mcp_config):
+    """O11: the operator REPL — a free-flowing conversation whose only hands
+    are the typed engine tools over MCP (SPEC-O11 §5). Needs the `claude` CLI
+    on PATH; `--print-mcp-config` lets any other MCP-speaking client connect
+    to the same `sembl-stack` server instead.
+    """
+    from . import operator_shell
+    if print_mcp_config:
+        click.echo(json.dumps(operator_shell.build_mcp_config(), indent=2))
+        return
+    raise SystemExit(operator_shell.run_repl(repo))
+
+
+@main.command()
 @click.option("--config", "config_path", default="sembl.stack.yaml")
 def doctor(config_path):
     """Preflight: check the environment for the layers your config selects."""
