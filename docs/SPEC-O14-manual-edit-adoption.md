@@ -1,8 +1,10 @@
 # SPEC — O14, the manual-edit adoption daemon (roadmap #6)
 
-> **Status:** DRAFT 2026-07-11 — awaiting owner approval. Do NOT dispatch: §0
-> holds the owner decisions (each with the lead's recommendation). Everything
-> below §0 is pinned.
+> **Status:** APPROVED 2026-07-12 — owner directed "proceed to build"; the §0
+> recommendations are thereby LOCKED as decisions (D-A1 headless scan-on-demand,
+> D-A2 model-free ledger this slice, D-A3 adopt-immediately + veto-reverts-record,
+> D-A4 adoption rides the drift tools, no new MCP tools). Dispatchable.
+> Everything below is pinned.
 > **Ledger:** O14 [LOCKED 2026-07-09]: in-bounds human edits auto-adopt into
 > the spec (daemon announces, one-click veto); bound-crossing edits ALWAYS ask
 > (widen bounds or revert) — a bounds violation is never silently adopted.

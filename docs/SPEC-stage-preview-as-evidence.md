@@ -1,8 +1,9 @@
 # SPEC — the stage, preview-as-evidence for the web profile (roadmap #3)
 
-> **Status:** DRAFT 2026-07-11 — awaiting owner approval. Do NOT dispatch: §0
-> holds the owner decisions this spec needs resolved first (each with the
-> lead's recommendation). Everything below §0 is pinned.
+> **Status:** APPROVED 2026-07-12 — owner directed "proceed to build"; the §0
+> recommendations are thereby LOCKED as decisions (D-S1 declared prepare,
+> D-S2 DOM-only, D-S3 down-by-default + `--stage-hold`, D-S4 capture out of
+> slice). Dispatchable. Everything below is pinned.
 > **Ledger:** PRODUCT-sembl-ide.md §"The stage: preview-as-evidence" (v2,
 > locked 2026-07-09), roadmap item #3. Stays within O1 (engine headless, every
 > surface a renderer), O3 (nothing judges quality; the stage carries evidence,
