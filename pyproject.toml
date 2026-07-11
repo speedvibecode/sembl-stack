@@ -25,7 +25,7 @@ dependencies = [
 [project.optional-dependencies]
 # Back-compat aliases; everything below is now a core dep except langfuse/textual.
 gate = ["sembl>=0.1.21"]
-mcp = ["mcp>=1.0"]
+mcp = ["mcp>=1.2.0"]  # sembl-stack-mcp — the operator's typed hands (SPEC-O11, matches ../sembl's extra)
 orchestrate = ["langgraph>=0.2"]
 trace = ["langfuse>=2.0"]
 tui = ["textual>=0.50"]              # the old onboarding/wizard TUI — retired, kept installable
@@ -36,6 +36,7 @@ all = ["sembl>=0.1.21", "mcp>=1.0", "langgraph>=0.2", "langfuse>=2.0", "textual>
 
 [project.scripts]
 sembl-stack = "sembl_stack.cli:main"
+sembl-stack-mcp = "sembl_stack.operator_mcp:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["sembl_stack"]

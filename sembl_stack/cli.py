@@ -27,7 +27,7 @@ import yaml
 
 from . import artifacts, doctor as doctor_mod, drift, presets, registry
 from .artifacts import Bounds, Change, Delivery, SpecGraph, Task, Verdict
-from .config import load
+from .config import StackConfig, load
 from .loop import run as run_loop
 from .reconciliation import reconcile_spec_code
 from .specgraph import build_spec_graph
@@ -148,23 +148,41 @@ def gui(repo, port, browser):
     launch_gui(repo, port=port, browser=browser)
 
 
-@click.argument("task_file", type=click.Path(exists=True, dir_okay=False))
-@click.option("--config", "config_path", default="sembl.stack.yaml")
-def _loop_cmd(task_file: str, config_path: str):
-    """Run the full wiring: plan -> execute -> verify (retry on BLOCK)."""
+def resolve_loop_inputs(task_file: str, config_path: str = "sembl.stack.yaml"
+                        ) -> tuple[StackConfig, Task, dict]:
+    """Pure extract of `loop`'s config/task resolution — no I/O side effects beyond
+    reading files, and CRITICALLY no click.echo/print: this is what lets the MCP
+    server (`operator_mcp.run_loop`, a stdio-protocol process where stray stdout
+    corrupts framing) call it silently. `_loop_cmd` below does its own echoing from
+    the returned metadata so CLI output stays byte-identical to before this extract.
+
+    Returns `(cfg, task, meta)` where `meta` is
+    `{"profile_used": <"runner=...  executor=..." summary str, or None>,
+      "config_file": <resolved config path actually loaded, or None>}`.
+    """
     task = _load_task(task_file, None, None, None)
     # Resolve against the task's repo too — an explicit sembl.stack.yaml there must win
     # over the profile even when the loop is launched from a different directory.
     cfg_file = _resolve_config(config_path, task.repo)
     overrides = None
+    profile_used = None
     if cfg_file is None:                 # no repo config: the onboarded profile is the default
         from . import profile as profile_mod
         prof = profile_mod.load()
         if prof is not None:
             overrides = profile_mod.to_stack_overrides(prof)
-            click.echo(f"(no {config_path} — using your profile: "
-                       f"runner={prof.runner}, executor={prof.executor})")
+            profile_used = f"runner={prof.runner}, executor={prof.executor}"
     cfg = load(cfg_file, overrides)
+    return cfg, task, {"profile_used": profile_used, "config_file": cfg_file}
+
+
+@click.argument("task_file", type=click.Path(exists=True, dir_okay=False))
+@click.option("--config", "config_path", default="sembl.stack.yaml")
+def _loop_cmd(task_file: str, config_path: str):
+    """Run the full wiring: plan -> execute -> verify (retry on BLOCK)."""
+    cfg, task, meta = resolve_loop_inputs(task_file, config_path)
+    if meta["profile_used"] is not None:
+        click.echo(f"(no {config_path} — using your profile: {meta['profile_used']})")
     click.echo(f"layers: {cfg.raw['layers']}")
     click.echo(f"task: {task.text!r}\nrepo: {task.repo}\n")
 
