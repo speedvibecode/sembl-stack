@@ -15,7 +15,7 @@ DEFAULTS = {
                "sandbox": "worktree", "verify": "sembl", "context": "none",
                "codegraph": "cbm", "review": "mock",
                "merge": "git", "deploy": "vercel", "postdeploy": "http",
-               "acceptance": "command"},
+               "acceptance": "command", "stage": "none"},
     "transport": {"spec": "mcp", "verify": "mcp",
                   "mcp_server": ["uvx", "--from", "sembl[mcp]", "sembl-mcp"]},
     "loop": {"max_attempts": 3, "strict": True},
@@ -36,6 +36,7 @@ class StackConfig:
     deploy: object = None
     postdeploy: object = None
     acceptance: object = None
+    stage: object = None
     max_attempts: int = 3
     strict: bool = True
     langfuse: bool = False
@@ -86,6 +87,8 @@ def load(path: str | None, overrides: dict | None = None) -> StackConfig:
                                   server, opts.get("postdeploy")),
         acceptance=registry.build("acceptance", layers.get("acceptance", "command"), "cli",
                                   server, opts.get("acceptance")),
+        stage=registry.build("stage", layers.get("stage", "none"), "cli",
+                             server, opts.get("stage")),
         max_attempts=cfg["loop"]["max_attempts"],
         strict=cfg["loop"]["strict"],
         langfuse=cfg["tracing"]["langfuse"],

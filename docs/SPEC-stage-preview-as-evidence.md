@@ -1,9 +1,20 @@
 # SPEC — the stage, preview-as-evidence for the web profile (roadmap #3)
 
-> **Status:** APPROVED 2026-07-12 — owner directed "proceed to build"; the §0
-> recommendations are thereby LOCKED as decisions (D-S1 declared prepare,
-> D-S2 DOM-only, D-S3 down-by-default + `--stage-hold`, D-S4 capture out of
-> slice). Dispatchable. Everything below is pinned.
+> **Status:** LANDED 2026-07-12 (all three WPs, one dispatch + lead review).
+> §0 decisions locked per owner's "proceed to build" (D-S1 declared prepare,
+> D-S2 DOM-only, D-S3 down-by-default + `--stage-hold`, D-S4 capture out).
+> Live-proven on the flagship (scratch git copy — the example dir is not its
+> own repo): real `npm ci` per attempt-clone, per-attempt `next dev` on
+> isolated ports, DOM snapshots + manifests bound per-attempt diff SHA,
+> stage.up/down on the bus, behavioral check PASS **against the stage**
+> (0.23s vs its old 90s self-boot budget), and the kill-9 orphan clause
+> proven mid-run. Lead deltas found live and now part of this spec:
+> (1) `SEMBL_STAGE_URL` exported to acceptance checks while they run — Next 16
+> holds a per-directory single-instance lock, so a check booting its own dev
+> server collides with the stage; (2) the stage server rides a Windows
+> kill-on-close Job Object so even a SIGKILLed loop leaves no orphan (POSIX
+> parent-death reaping is a recorded gap); (3) acceptance also skips on a
+> prepare failure (sibling of the stage skip the executor wrote).
 > **Ledger:** PRODUCT-sembl-ide.md §"The stage: preview-as-evidence" (v2,
 > locked 2026-07-09), roadmap item #3. Stays within O1 (engine headless, every
 > surface a renderer), O3 (nothing judges quality; the stage carries evidence,

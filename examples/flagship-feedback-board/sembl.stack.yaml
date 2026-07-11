@@ -5,6 +5,19 @@ layers:
   verify: sembl
   deploy: vercel
   postdeploy: http
+  stage: web
+
+# SPEC-stage live-proof (2026-07-12): deps into every attempt clone, then a live
+# per-attempt preview whose rendered DOM lands in the run record.
+sandbox:
+  prepare: "npm ci"
+  timeout_s: 900
+
+stage:
+  serve: "npm run dev -- -p {port}"
+  ready: "http://127.0.0.1:{port}/"
+  routes: ["/"]
+  ready_timeout_s: 180
 
 transport:
   spec: mcp

@@ -18,6 +18,7 @@ from .adapters.merge_git import GitMergeAdapter
 from .adapters.postdeploy_http import HttpPostDeployGate
 from .adapters.sandbox_worktree import WorktreeSandbox
 from .adapters.spec_sembl import SemblSpecAdapter
+from .adapters.stage_web import WebStageHarness
 from .adapters.verify_sembl import SemblVerifyAdapter
 from .adapters.codegraph_cbm import CbmCodeGraph
 from .adapters.review_mock import MockReviewAdapter
@@ -84,6 +85,12 @@ _REGISTRY: dict[str, dict[str, object]] = {
         "contract": lambda t, s, o: ContractAcceptanceRunner(
             default_timeout=o.get("default_timeout", 300)),
         "none": lambda t, s, o: None,                      # explicit no-op (disables the axis)
+    },
+    "stage": {                                            # L4.5 preview-as-evidence (adjunct)
+        "web": lambda t, s, o: WebStageHarness(
+            ready_timeout_s=o.get("ready_timeout_s", 60),
+            snapshot_timeout_s=o.get("snapshot_timeout_s", 10)),
+        "none": lambda t, s, o: None,                      # default: no stage declared, inert
     },
 }
 

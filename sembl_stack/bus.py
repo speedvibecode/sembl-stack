@@ -22,6 +22,7 @@ BUS_PATH = ".sembl/bus.jsonl"   # repo-relative, like .sembl/runs/
 _KNOWN_KINDS = {
     "run.started", "run.stage", "run.verdict", "run.finished",
     "drift.new", "deploy.status", "postdeploy.status", "other",
+    "stage.up", "stage.down",
 }
 
 

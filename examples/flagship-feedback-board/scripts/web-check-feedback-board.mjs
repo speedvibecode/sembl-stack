@@ -20,6 +20,11 @@
 //   WEB_CHECK_APP_DIR   app root to run against (default: this script's parent dir)
 //   WEB_CHECK_PORT      fixed port instead of an OS-assigned free one
 //   WEB_CHECK_TIMEOUT_MS  overall wait budget for the dev server to become ready
+//   SEMBL_STAGE_URL     set by the loop when a stage is already serving this
+//                       sandbox (SPEC-stage): assert against THAT server instead
+//                       of booting our own — Next 16 holds a per-directory
+//                       single-instance lock, so a second `next dev` here would
+//                       refuse to start.
 
 import { spawn, execSync } from "node:child_process";
 import { createServer } from "node:net";
@@ -87,7 +92,36 @@ async function waitForReady(url, deadline) {
   return false;
 }
 
+async function checkRenderedPage(url) {
+  const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
+  if (res.status !== 200) {
+    fail(`GET ${url} returned status ${res.status}, expected 200`);
+    return;
+  }
+  const html = await res.text();
+  const missing = EXPECTED_TITLES.filter((title) => !html.includes(title));
+  if (missing.length > 0) {
+    fail(
+      `rendered page is missing expected fallback feedback item(s): ${JSON.stringify(missing)}`,
+    );
+    return;
+  }
+  process.stdout.write(
+    "PASS: feedback board renders all 3 local-fallback feedback items\n",
+  );
+}
+
 async function main() {
+  if (process.env.SEMBL_STAGE_URL) {
+    // The loop's stage already serves this sandbox — use it, don't race it.
+    try {
+      await checkRenderedPage(process.env.SEMBL_STAGE_URL);
+    } catch (err) {
+      fail(`web check crashed against the stage: ${err && err.stack ? err.stack : err}`);
+    }
+    return;
+  }
+
   const port = process.env.WEB_CHECK_PORT
     ? Number(process.env.WEB_CHECK_PORT)
     : await freePort();
@@ -135,24 +169,7 @@ async function main() {
       return;
     }
 
-    const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
-    if (res.status !== 200) {
-      fail(`GET / returned status ${res.status}, expected 200`);
-      return;
-    }
-    const html = await res.text();
-
-    const missing = EXPECTED_TITLES.filter((title) => !html.includes(title));
-    if (missing.length > 0) {
-      fail(
-        `rendered page is missing expected fallback feedback item(s): ${JSON.stringify(missing)}`,
-      );
-      return;
-    }
-
-    process.stdout.write(
-      "PASS: feedback board renders all 3 local-fallback feedback items\n",
-    );
+    await checkRenderedPage(url);
   } catch (err) {
     fail(`web check crashed: ${err && err.stack ? err.stack : err}`);
   } finally {

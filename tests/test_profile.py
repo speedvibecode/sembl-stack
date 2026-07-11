@@ -163,10 +163,12 @@ def test_loop_finds_repo_config_before_applying_profile(tmp_path, monkeypatch):
                         lambda p=None: Profile(runner="claude-login", executor="claude"))
     captured = {}
 
-    def fake_run_loop(cfg, task):
+    def fake_run_loop(cfg, task, **kwargs):
         captured["execute"] = cfg.raw["layers"]["execute"]
         class V: status = "PASS"; reasons = []
-        class R: engine = "stub"; history = [(1, "PASS")]; verdict = V(); attempts = 1; run_id = None
+        class R:
+            engine = "stub"; history = [(1, "PASS")]; verdict = V(); attempts = 1
+            run_id = None; stage_handle = None
         return R()
 
     monkeypatch.setattr(cli_mod, "run_loop", fake_run_loop)

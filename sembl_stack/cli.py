@@ -178,7 +178,11 @@ def resolve_loop_inputs(task_file: str, config_path: str = "sembl.stack.yaml"
 
 @click.argument("task_file", type=click.Path(exists=True, dir_okay=False))
 @click.option("--config", "config_path", default="sembl.stack.yaml")
-def _loop_cmd(task_file: str, config_path: str):
+@click.option("--stage-hold", is_flag=True, default=False,
+              help="D-S3: keep the FINAL attempt's stage server running after the "
+                   "loop finishes (every other attempt's stage still comes down "
+                   "normally); prints the URL. No-op if no `stage:` is declared.")
+def _loop_cmd(task_file: str, config_path: str, stage_hold: bool):
     """Run the full wiring: plan -> execute -> verify (retry on BLOCK)."""
     cfg, task, meta = resolve_loop_inputs(task_file, config_path)
     if meta["profile_used"] is not None:
@@ -187,7 +191,7 @@ def _loop_cmd(task_file: str, config_path: str):
     click.echo(f"task: {task.text!r}\nrepo: {task.repo}\n")
 
     try:
-        result = run_loop(cfg, task)
+        result = run_loop(cfg, task, stage_hold=stage_hold)
     except RuntimeError as exc:
         # Stage adapters raise RuntimeError with an "L<n>: ..." prefix. A stranger's
         # first failure should be a diagnosis, not a stack trace.
@@ -215,6 +219,10 @@ def _loop_cmd(task_file: str, config_path: str):
         click.echo(f"inspect: sembl-stack runs {result.run_id} --repo {task.repo}")
         if v.status in ("PASS", "WARN"):
             click.echo(f"apply:   sembl-stack apply {result.run_id} --repo {task.repo}")
+    if result.stage_handle is not None:
+        click.echo(f"\nstage held: {result.stage_handle.url}")
+        click.echo("  (--stage-hold kept this attempt's server running; stop it "
+                   "yourself when you're done)")
     raise SystemExit(0 if v.status in ("PASS", "WARN") else 1)
 
 

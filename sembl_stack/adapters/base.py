@@ -192,3 +192,15 @@ class AcceptanceRunner(Protocol):    # L4.5: Acceptance+Sandbox+Task+Bounds -> A
     def run(self, acceptance: Acceptance, sandbox: Sandbox, task: Task,
             bounds: Bounds) -> AcceptanceReport:
         ...
+
+
+@runtime_checkable
+class StageHandleProtocol(Protocol):  # a live stage instance the harness handed back
+    url: str
+    def snapshot(self, routes: list) -> dict: ...
+    def close(self) -> None: ...
+
+
+@runtime_checkable
+class StageAdapter(Protocol):        # L4.5 (adjunct): Sandbox+decl -> StageHandle
+    def open(self, sandbox: Sandbox, decl: dict) -> "StageHandleProtocol": ...
