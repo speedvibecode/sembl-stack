@@ -9,6 +9,7 @@ from __future__ import annotations
 from .adapters.acceptance_command import CommandAcceptanceRunner
 from .adapters.acceptance_contract import ContractAcceptanceRunner
 from .adapters.acceptance_web import WebAcceptanceRunner
+from .adapters.execute_agy import AgyExecutor
 from .adapters.execute_aider import AiderExecutor
 from .adapters.execute_claude import ClaudeCodeExecutor
 from .adapters.execute_mock import MockExecutor
@@ -35,6 +36,8 @@ _REGISTRY: dict[str, dict[str, object]] = {
     },
     "execute": {
         "mock": lambda t, s, o: MockExecutor(),
+        "agy": lambda t, s, o: AgyExecutor(
+            model=o.get("model"), timeout=o.get("timeout", 1800)),
         "opencode": lambda t, s, o: OpenCodeExecutor(
             model=o.get("model"), timeout=o.get("timeout", 900)),
         "claude": lambda t, s, o: ClaudeCodeExecutor(
