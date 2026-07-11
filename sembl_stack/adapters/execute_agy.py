@@ -58,10 +58,17 @@ class AgyExecutor:
         # agy's own print budget must expire BEFORE run_executor's hard kill, so
         # the agent exits with its partial output instead of being killed silently.
         soft_timeout = max(self.timeout - 30, 60)
-        cmd = launcher + ["-p", prompt, "--dangerously-skip-permissions",
+        # --new-project: agy anchors its workspace to a PROJECT, not the cwd — a
+        # prior session (even an interactive one the operator ran elsewhere) would
+        # otherwise be resumed and agy would edit THAT tree while cwd sits in the
+        # sandbox. Found live 2026-07-12: the first self-host run escaped the cage
+        # and wrote a whole feature into the source repo while every sandbox diff
+        # came back empty. A fresh project per invocation anchors to cwd = clone.
+        cmd = launcher + ["--new-project", "-p", prompt,
+                          "--dangerously-skip-permissions",
                           "--print-timeout", f"{soft_timeout}s"]
         if self.model:
-            cmd += ["-m", self.model]
+            cmd += ["--model", self.model]
         rc, out, err, timed_out = run_executor(
             cmd, cwd=sandbox.workdir, timeout=self.timeout)
 

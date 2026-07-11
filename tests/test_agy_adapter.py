@@ -69,13 +69,15 @@ def test_run_builds_headless_argv(monkeypatch):
     cmd = captured["cmd"]
     assert cmd[0] == r"C:\x\agy.exe"
     assert "--dangerously-skip-permissions" in cmd
+    assert "--new-project" in cmd     # the sandbox pin: agy is project-anchored,
+                                      # a resumed project = editing the wrong tree
     prompt = cmd[cmd.index("-p") + 1]
     assert "add VERSION\nsecond line survives" in prompt   # native exe: newlines intact
     assert "You may ONLY edit these paths: src/app/" in prompt
     assert "Never touch: infra/" in prompt
     soft = cmd[cmd.index("--print-timeout") + 1]
     assert soft == "1770s"                                 # softer than the hard kill
-    assert cmd[cmd.index("-m") + 1] == "gemini-3-pro"
+    assert cmd[cmd.index("--model") + 1] == "gemini-3-pro"
     assert captured["cwd"] == "/tmp/wd"
     assert result.report["agent"] == "agy"
     assert result.report["files_modified"] == ["src/app/__init__.py"]
