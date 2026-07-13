@@ -15,16 +15,20 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import atexit
 import dataclasses
+import json
 import threading
 from pathlib import Path
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from .. import guide, onboarding, profile as profile_mod, runner
+from ..bus import read_since
+from ..config import load_acceptance
 from ..store import RunStore
 
 STATIC_DIR = Path(__file__).parent / "static"
@@ -66,17 +70,109 @@ class _State:
     """Everything mutable, in one place — the repo this process is bound to, and
     whether a run is currently in flight (only one at a time: a second WS connect
     while a run is live gets a clear error instead of silently starting a second
-    concurrent run against the same sandboxed clone)."""
+    concurrent run against the same sandboxed clone).
+
+    `held_stage_handle` is D7: the live preview server kept alive by a
+    `?stage_hold=1` run. At most one is ever alive at a time — a new run closes
+    whatever the previous one left open before it starts."""
     root: Path
     run_lock: threading.Lock
+    held_stage_handle: object | None
 
     def __init__(self, repo: str):
         self.root = Path(repo).resolve()
         self.run_lock = threading.Lock()
+        self.held_stage_handle = None
+
+    def close_held_stage(self) -> None:
+        """Never raises — a teardown failure can't be allowed to break the next run
+        or process exit (mirrors every other adapter-teardown call in this codebase).
+        Closes the handle's `owned_sandbox` too: with `stage_hold` the loop leaves
+        the final sandbox alive for the held server and transfers ownership here."""
+        if self.held_stage_handle is not None:
+            try:
+                self.held_stage_handle.close()
+            except Exception:
+                pass
+            sandbox = getattr(self.held_stage_handle, "owned_sandbox", None)
+            if sandbox is not None:
+                try:
+                    sandbox.close()
+                except Exception:
+                    pass
+            self.held_stage_handle = None
+
+
+def _safe_get(run, name: str):
+    """`run.get(name)`, but a missing OR malformed artifact degrades to `None`
+    instead of raising — a crashed/corrupt run directory must never 500 an
+    endpoint (a crashed run may have only `run.json`)."""
+    try:
+        return run.get(name)
+    except Exception:
+        return None
+
+
+def _last_change_meta(run, man: dict) -> tuple[str | None, str | None]:
+    """Best-effort `(executor, model)` from the LAST attempt's `change-N.json`
+    report, else `(None, None)` — never raises."""
+    n = len(man.get("attempts_log") or [])
+    if n < 1:
+        return None, None
+    change = _safe_get(run, f"change-{n}")
+    if change is None:
+        return None, None
+    report = getattr(change, "report", None) or {}
+    return report.get("agent"), report.get("model")
+
+
+def _acceptance_results(acc_report) -> list[dict] | None:
+    """An `AcceptanceReport` artifact -> `[{id, outcome, duration_s, detail}, ...]`,
+    or `None` when no report exists for this attempt."""
+    if acc_report is None:
+        return None
+    results = getattr(acc_report, "results", None) or []
+    return [{"id": r.get("id"), "outcome": r.get("outcome"),
+             "duration_s": r.get("duration_s"), "detail": r.get("detail")}
+            for r in results if isinstance(r, dict)]
+
+
+def _read_stage_manifest(run, attempt: int) -> dict | None:
+    """`stage-{attempt}.json` (a plain JSON file, not an `_Serializable` artifact) ->
+    `{ok, url, port, diff_sha256, routes}`, or `None` if absent/unreadable."""
+    path = run.dir / f"stage-{attempt}.json"
+    if not path.is_file():
+        return None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    ready = data.get("ready") or {}
+    return {
+        "ok": ready.get("ok"),
+        "url": data.get("url"),
+        "port": data.get("port"),
+        "diff_sha256": data.get("diff_sha256"),
+        "routes": data.get("routes") or {},
+    }
+
+
+def _acceptance_descriptions(root: Path) -> dict:
+    """`{check_id: description}` from the bound repo's declared `acceptance.json`
+    (best-effort — `{}` when absent/unparseable, NEVER an exception)."""
+    try:
+        acc = load_acceptance(str(root))
+    except Exception:
+        return {}
+    if acc is None:
+        return {}
+    return {c.get("id"): c.get("description", "")
+            for c in acc.checks if isinstance(c, dict) and c.get("id")}
 
 
 def create_app(repo: str = ".") -> FastAPI:
     state = _State(repo)
+    atexit.register(state.close_held_stage)
     app = FastAPI(title="sembl-stack")
 
     # ------------------------------------------------------------------ status
@@ -141,14 +237,20 @@ def create_app(repo: str = ".") -> FastAPI:
         for run_id in store.list_runs():
             run = store.open(run_id)
             man = run.manifest()
-            verdict = run.get("verdict")
+            verdict = _safe_get(run, "verdict")
+            executor, model = _last_change_meta(run, man)
             out.append({
                 "id": run_id,
                 "status": man.get("status"),
                 "task": (man.get("task") or {}).get("text", ""),
                 "attempts": len(man.get("attempts_log", [])),
                 "verdict": verdict.status if verdict is not None else None,
+                "created": man.get("created"),
+                "executor": executor,
+                "model": model,
+                "error": man.get("error"),
             })
+        out.sort(key=lambda r: r["created"] or 0, reverse=True)
         return out
 
     @app.get("/api/runs/{run_id}")
@@ -159,11 +261,17 @@ def create_app(repo: str = ".") -> FastAPI:
         except ValueError as exc:
             return {"error": str(exc)}
         man = run.manifest()
-        verdict = run.get("verdict")
+        verdict = _safe_get(run, "verdict")
+        bounds_artifact = _safe_get(run, "bounds")
+        bounds = ({"editable_paths": bounds_artifact.editable_paths,
+                   "forbidden_areas": bounds_artifact.forbidden_areas}
+                  if bounds_artifact is not None else None)
         attempts = []
         for n in range(1, len(man.get("attempts_log", [])) + 1):
-            change = run.get(f"change-{n}")
-            v = run.get(f"verdict-{n}")
+            change = _safe_get(run, f"change-{n}")
+            v = _safe_get(run, f"verdict-{n}")
+            acc_report = _safe_get(run, f"acceptance-{n}")
+            report = (getattr(change, "report", None) or {}) if change else {}
             attempts.append({
                 "attempt": n,
                 "diff": getattr(change, "diff", "") if change else "",
@@ -171,6 +279,10 @@ def create_app(repo: str = ".") -> FastAPI:
                         if change else [],
                 "status": v.status if v is not None else None,
                 "reasons": v.reasons if v is not None else [],
+                "acceptance": _acceptance_results(acc_report),
+                "stage": _read_stage_manifest(run, n),
+                "cost_usd": report.get("cost"),
+                "model": report.get("model"),
             })
         return {
             "id": run_id,
@@ -179,7 +291,56 @@ def create_app(repo: str = ".") -> FastAPI:
             "verdict": {"status": verdict.status, "reasons": verdict.reasons}
                        if verdict is not None else None,
             "attempts": attempts,
+            "created": man.get("created"),
+            "error": man.get("error"),
+            "bounds": bounds,
+            "acceptance_descriptions": _acceptance_descriptions(state.root),
         }
+
+    @app.get("/api/runs/{run_id}/stage/{attempt}")
+    def stage_snapshot(run_id: str, attempt: int):
+        store = RunStore(str(state.root))
+        try:
+            run = store.open(run_id)
+        except ValueError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=404)
+        manifest_path = run.dir / f"stage-{attempt}.json"
+        if not manifest_path.is_file():
+            return JSONResponse(
+                {"error": "no stage evidence for this attempt"}, status_code=404)
+        try:
+            data = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except Exception:
+            return JSONResponse(
+                {"error": "stage manifest is unreadable"}, status_code=404)
+        routes = data.get("routes") or {}
+        if not routes:
+            return JSONResponse(
+                {"error": "no routes recorded for this attempt"}, status_code=404)
+        first = next(iter(routes.values()))
+        rel = first.get("file") if isinstance(first, dict) else None
+        if not rel:
+            return JSONResponse(
+                {"error": "no snapshot file recorded for this attempt"}, status_code=404)
+        run_dir = run.dir.resolve()
+        candidate = (run.dir / rel).resolve()
+        try:
+            candidate.relative_to(run_dir)
+        except ValueError:
+            # A `file` path that escapes the run directory (e.g. "../../secret.html")
+            # is never served — treated the same as "not found", not a 403, so a
+            # crafted path can't be used to probe what exists on disk.
+            return JSONResponse(
+                {"error": "snapshot path escapes the run directory"}, status_code=404)
+        if not candidate.is_file():
+            return JSONResponse(
+                {"error": "snapshot file is missing"}, status_code=404)
+        return HTMLResponse(candidate.read_text(encoding="utf-8"))
+
+    @app.get("/api/events")
+    def events(cursor: int = 0):
+        evs, new_cursor = read_since(state.root, cursor)
+        return {"events": evs, "cursor": new_cursor}
 
     # --------------------------------------------------------------- run (WS)
 
@@ -191,6 +352,12 @@ def create_app(repo: str = ".") -> FastAPI:
                 "type": "error", "message": "a run is already in progress"})
             await websocket.close()
             return
+
+        # D7: `?stage_hold=1` keeps the final attempt's stage server alive after the
+        # loop finishes; whatever the PREVIOUS run left held is torn down before
+        # this one starts — at most one live preview process at a time.
+        stage_hold = websocket.query_params.get("stage_hold") == "1"
+        state.close_held_stage()
 
         loop = asyncio.get_event_loop()
         queue: asyncio.Queue = asyncio.Queue()
@@ -211,11 +378,14 @@ def create_app(repo: str = ".") -> FastAPI:
                                                      "set a task first"})
                     return
                 cfg = runner.resolve_config(str(state.root))
-                result = runner.run_stages(cfg, task, emit)
+                result = runner.run_stages(cfg, task, emit, stage_hold=stage_hold)
+                state.held_stage_handle = result.stage_handle
+                stage_url = (getattr(result.stage_handle, "url", None)
+                            if result.stage_handle is not None else None)
                 loop.call_soon_threadsafe(queue.put_nowait, {
                     "type": "done", "run_id": result.run_id,
                     "status": result.verdict.status, "reasons": result.verdict.reasons,
-                    "attempts": result.attempts,
+                    "attempts": result.attempts, "stage_url": stage_url,
                 })
             except Exception as exc:                      # noqa: BLE001 — surfaced, not swallowed
                 loop.call_soon_threadsafe(

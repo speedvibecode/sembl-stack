@@ -236,12 +236,23 @@ def test_stage_hold_keeps_final_attempt_alive_and_returns_handle(tmp_path):
         snap = result.stage_handle.snapshot(["/"])
         assert snap["/"]["status"] == "OK"
 
+        # The held server's CONTENT must survive too: the sandbox rides on the
+        # handle (`owned_sandbox`) and its workdir still exists on disk — closing
+        # it with the run left a zombie dev server that 500'd every request
+        # (found live in the cockpit's post-run preview).
+        owned = getattr(result.stage_handle, "owned_sandbox", None)
+        assert owned is not None
+        assert Path(owned.workdir).is_dir()
+
         bus = _read_bus(tmp_path)
         down = [e for e in bus if e["kind"] == "stage.down"]
         assert down == []                          # never closed automatically
     finally:
         if result.stage_handle is not None:
             result.stage_handle.close()             # test cleanup: no orphan process
+            owned = getattr(result.stage_handle, "owned_sandbox", None)
+            if owned is not None:
+                owned.close()                       # and no orphan clone on disk
 
 
 def test_stage_without_hold_closes_after_the_final_attempt(tmp_path):

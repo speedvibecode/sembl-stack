@@ -197,3 +197,38 @@ def test_verdict_text_shows_status_reasons_and_run_id():
     assert "FINAL: BLOCK" in text
     assert "out-of-scope edit" in text
     assert "20260703-abc" in text
+
+
+# --- proxy transparency (the O12 `acceptance=` regression class) -------------------
+
+def test_proxies_forward_grown_kwargs_and_attributes():
+    """The streamed-run proxies must be signature-transparent: `loop.py` passing a
+    kwarg the proxy never heard of (O12's `acceptance=` on verify — a real crash
+    that only the GUI/WS path hit, the headless path kept working) or reading an
+    attribute off the inner adapter must pass straight through."""
+    events = []
+
+    class _Gate:
+        gate_version = "0.2.0"                     # attribute reads delegate too
+
+        def verify(self, bounds, change, strict, *, acceptance=None):
+            if acceptance is None:
+                return Verdict(status="BLOCK", reasons=["acceptance kwarg was dropped"])
+            return Verdict(status="PASS", reasons=[])
+
+    proxy = runner._VerifyProxy(_Gate(), events.append)
+    verdict = proxy.verify(Bounds(editable_paths=["x.py"]),
+                           Change(diff=DIFF, report={}, workdir="."),
+                           True, acceptance={"declared": [1], "results": []})
+    assert verdict.status == "PASS"                # the kwarg reached the inner gate
+    assert proxy.gate_version == "0.2.0"           # __getattr__ delegation
+    assert [e.stage for e in events] == ["verify", "verify"]
+
+    class _Executor:
+        def run(self, task, bounds, sandbox, feedback, *, budget=None):
+            assert budget == 7
+            return Change(diff=DIFF, report={"exit_code": 0}, workdir=".")
+
+    exec_proxy = runner._ExecuteProxy(_Executor(), events.append)
+    change = exec_proxy.run(None, None, None, None, budget=7)
+    assert change.diff == DIFF

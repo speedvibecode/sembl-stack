@@ -6,6 +6,12 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["--prefix", "C:/Users/totla/Desktop/projects/sembl-stack/ide/browser-app", "run", "start"],
       "port": 3000
+    },
+    {
+      "name": "sembl-demo-shell",
+      "runtimeExecutable": "C:/Users/totla/Desktop/projects/sembl-stack/.venv/Scripts/python.exe",
+      "runtimeArgs": ["-m", "sembl_stack.gui.server", "--repo", "C:/Users/totla/Desktop/projects/sembl-demo/feedback-board", "--port", "8765"],
+      "port": 8765
     }
   ]
 }

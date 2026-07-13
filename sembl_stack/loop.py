@@ -727,7 +727,13 @@ def run(cfg: StackConfig, task: Task, *, stage_hold: bool = False) -> LoopResult
 
     sandbox = final.get("sandbox")
     workdir = getattr(sandbox, "workdir", None) if sandbox else None
-    if sandbox is not None:
+    # A held stage (`--stage-hold`) needs its sandbox ALIVE: the dev server keeps
+    # compiling from that directory, so deleting the clone here leaves a zombie
+    # server that 500s every request after the run (found live: the cockpit's
+    # post-run preview died the moment this close ran). Ownership transfers to
+    # the held handle instead — whoever closes the handle closes the sandbox.
+    hold_active = stage_hold and final.get("stage_handle") is not None
+    if sandbox is not None and not hold_active:
         sandbox.close()
     tracer.flush()
 
@@ -773,6 +779,9 @@ def run(cfg: StackConfig, task: Task, *, stage_hold: bool = False) -> LoopResult
     if stage_handle is not None:
         if stage_hold:
             held_handle = stage_handle
+            # The sandbox the held server serves from (skipped above). Callers
+            # close it right after `held_handle.close()`.
+            held_handle.owned_sandbox = sandbox
         else:
             _close_stage(stage_handle, bus_root, run_rec.id, final.get("attempt", 0))
 

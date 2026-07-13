@@ -2,72 +2,51 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<title>sembl-stack</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>sembl</title>
 <link rel="stylesheet" href="/static/styles.css" />
 </head>
 <body>
-<div id="app">
-  <div class="topbar">
-    <span class="repo-path" id="repo-path">-</span>
+<div class="app">
+
+  <div class="top">
+    <span class="brand">sembl</span>
+    <span class="repo" id="repo-name">&mdash;</span>
     <span class="spacer"></span>
-    <span class="agent-status" id="agent-status"><span class="dot"></span> loading…</span>
+    <button class="tbtn primary" id="new-run-btn" type="button">New run</button>
   </div>
 
-  <div class="layout">
-    <aside class="sidebar">
-      <div class="sidebar-section">
-        <h2>Agent</h2>
-        <div id="agent-list"></div>
-      </div>
-      <div class="sidebar-section">
-        <h2>Layers</h2>
-        <div id="layers-list"></div>
-      </div>
-      <div class="sidebar-section">
-        <h2>Runs</h2>
-        <ul class="run-list" id="run-list"></ul>
-      </div>
+  <div class="cols">
+
+    <aside class="side">
+      <div class="hd">Runs</div>
+      <div id="run-list"></div>
     </aside>
 
-    <main class="main">
-      <section class="pane" id="task-pane">
-        <h1>Task</h1>
-        <label for="task-text">What should the agent do?</label>
-        <textarea id="task-text" rows="4"></textarea>
+    <section class="convo">
+      <div class="thread" id="thread"></div>
+      <div class="composer">
+        <textarea
+          id="composer-input"
+          rows="1"
+          placeholder="Describe a change &mdash; the loop plans bounds, builds in a sandbox, and the gate judges it."
+        ></textarea>
+      </div>
+    </section>
 
-        <label for="editable-paths">Paths the agent may touch</label>
-        <div class="field-row">
-          <input type="text" id="editable-paths" placeholder="app/, src/lib" />
-          <button class="small" id="suggest-editable">Suggest</button>
-        </div>
+    <aside class="preview">
+      <div class="bar">
+        <span class="live-dot" id="preview-dot"></span>
+        <span class="url" id="preview-url">&mdash;</span>
+        <span class="attempt" id="preview-attempt"></span>
+      </div>
+      <div class="page" id="preview-page">
+        <div class="preview-empty" id="preview-empty">Select a run to view evidence.</div>
+        <iframe id="preview-frame" class="hidden" title="stage preview"></iframe>
+      </div>
+      <div class="foot" id="preview-foot"></div>
+    </aside>
 
-        <label for="forbidden-paths">Paths it must NOT touch (optional)</label>
-        <div class="field-row">
-          <input type="text" id="forbidden-paths" placeholder="infra/, .env" />
-          <button class="small" id="suggest-forbidden">Suggest</button>
-        </div>
-        <div class="hint" id="task-hint"></div>
-
-        <div class="actions">
-          <button class="primary" id="run-button">Run</button>
-        </div>
-
-        <div class="timeline" id="timeline"></div>
-      </section>
-
-      <section class="pane" id="result-pane">
-        <h1>Result</h1>
-        <div id="result-body">
-          <div class="placeholder">Run a task, or pick a past run from the sidebar.</div>
-        </div>
-        <div class="actions" id="ship-actions" style="display:none">
-          <button class="primary" id="ship-apply">Apply to repo</button>
-          <label style="display:inline-flex;align-items:center;gap:6px;margin:0;font-size:12px;color:var(--text-dim)">
-            <input type="checkbox" id="ship-commit" /> also commit
-          </label>
-        </div>
-      </section>
-    </main>
   </div>
 </div>
 

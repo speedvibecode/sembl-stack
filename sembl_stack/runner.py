@@ -37,14 +37,26 @@ class StageEvent:
     diff: str = ""      # execute-done carries the attempt's unified diff (live view)
 
 
-class _SpecProxy:
+class _Proxy:
+    """Base for the stage-event proxies. Signature-transparent by construction:
+    the wrapped method forwards *args/**kwargs verbatim and every attribute not
+    defined on the proxy resolves to the inner adapter — so an adapter method
+    growing a kwarg (O12's `acceptance=` on verify did exactly this) or the loop
+    reading an adapter attribute can never break only the streamed-run path
+    while the headless path keeps working."""
+
     def __init__(self, inner, emit: Emit):
         self._inner, self._emit = inner, emit
 
-    def plan(self, task):
+    def __getattr__(self, name):
+        return getattr(self._inner, name)
+
+
+class _SpecProxy(_Proxy):
+    def plan(self, task, *args, **kwargs):
         self._emit(StageEvent("bounds", "running"))
         try:
-            bounds = self._inner.plan(task)
+            bounds = self._inner.plan(task, *args, **kwargs)
         except Exception:
             self._emit(StageEvent("bounds", "fail"))
             raise
@@ -52,20 +64,20 @@ class _SpecProxy:
         return bounds
 
 
-class _SandboxProxy:
+class _SandboxProxy(_Proxy):
     """L4 made visible: `loop.py`'s execute() node opens a fresh sandbox every
     attempt but nothing ever reported it — the rail jumped straight from bounds to
     execute as if the cage didn't exist. One line per attempt, real (fires exactly
     when `cfg.sandbox.open()` is actually called), never fabricated."""
 
     def __init__(self, inner, emit: Emit):
-        self._inner, self._emit = inner, emit
+        super().__init__(inner, emit)
         self._attempt = 0
 
-    def open(self, repo):
+    def open(self, repo, *args, **kwargs):
         self._attempt += 1
         try:
-            sandbox = self._inner.open(repo)
+            sandbox = self._inner.open(repo, *args, **kwargs)
         except Exception:
             self._emit(StageEvent("sandbox", "fail", f"attempt {self._attempt}"))
             raise
@@ -74,16 +86,16 @@ class _SandboxProxy:
         return sandbox
 
 
-class _ExecuteProxy:
+class _ExecuteProxy(_Proxy):
     def __init__(self, inner, emit: Emit):
-        self._inner, self._emit = inner, emit
+        super().__init__(inner, emit)
         self._attempt = 0
 
-    def run(self, task, bounds, sandbox, feedback):
+    def run(self, task, bounds, sandbox, feedback, *args, **kwargs):
         self._attempt += 1
         self._emit(StageEvent("loop", "running", f"attempt {self._attempt}"))
         try:
-            result = self._inner.run(task, bounds, sandbox, feedback)
+            result = self._inner.run(task, bounds, sandbox, feedback, *args, **kwargs)
         except Exception:
             # loop.execute converts the crash into a BLOCKed Change; mark the rail
             # anyway so the user sees which attempt died.
@@ -94,14 +106,11 @@ class _ExecuteProxy:
         return result
 
 
-class _VerifyProxy:
-    def __init__(self, inner, emit: Emit):
-        self._inner, self._emit = inner, emit
-
-    def verify(self, bounds, change, strict):
+class _VerifyProxy(_Proxy):
+    def verify(self, bounds, change, strict, *args, **kwargs):
         self._emit(StageEvent("verify", "running"))
         try:
-            verdict = self._inner.verify(bounds, change, strict)
+            verdict = self._inner.verify(bounds, change, strict, *args, **kwargs)
         except Exception:
             self._emit(StageEvent("verify", "fail"))
             raise
@@ -143,16 +152,20 @@ def resolve_config(repo: str, config_name: str = "sembl.stack.yaml") -> StackCon
     return load_config(None, overrides)
 
 
-def run_stages(cfg, task: Task, emit: Emit) -> LoopResult:
+def run_stages(cfg, task: Task, emit: Emit, stage_hold: bool = False) -> LoopResult:
     """Run the real loop with stage events streamed to `emit`. Blocking — call it from a
     worker thread; `emit` fires on that thread (marshal to the UI thread yourself,
-    e.g. Textual's `call_from_thread`)."""
+    e.g. Textual's `call_from_thread`).
+
+    `stage_hold` is D7's passthrough of `loop.run`'s `--stage-hold`: the caller (the
+    GUI's WS endpoint) owns closing the returned `LoopResult.stage_handle`, same
+    contract as the CLI's `--stage-hold` flag."""
     wrapped = copy.copy(cfg)             # shallow: same adapters, four wrapped in proxies
     wrapped.spec = _SpecProxy(cfg.spec, emit)
     wrapped.sandbox = _SandboxProxy(cfg.sandbox, emit)
     wrapped.execute = _ExecuteProxy(cfg.execute, emit)
     wrapped.verify = _VerifyProxy(cfg.verify, emit)
-    result = run_loop(wrapped, task)
+    result = run_loop(wrapped, task, stage_hold=stage_hold)
     v = result.verdict
     emit(StageEvent("verify", "done" if v.status in ("PASS", "WARN") else "fail",
                     v.status))

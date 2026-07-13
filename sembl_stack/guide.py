@@ -118,18 +118,45 @@ def parse_paths(raw: str) -> list[str]:
 
 def write_task_and_bounds(repo: Path, text: str, editable: list[str],
                           forbidden: list[str]) -> None:
-    """Persist the step-3 answers as the loop's artifacts. Tool-owned files."""
+    """Persist the step-3 answers as the loop's artifacts. Tool-owned files.
+
+    Merge-preserving (D6): a curated task.yaml (`spec_path`, ...) or bounds.json
+    (`churn_budget`, ...) may carry keys this step never sets — only `text` (task)
+    and `editable_paths`/`forbidden_areas` (bounds) are replaced; every other
+    existing key round-trips untouched. A missing or unparseable existing file is
+    just treated as empty — this never raises on account of what was there before.
+    """
     if not text.strip():
         raise ValueError("describe the task first")
     if not editable:
         raise ValueError("give the agent at least one editable path")
-    (repo / "task.yaml").write_text(
-        json.dumps({"text": text.strip(), "repo": "."}), encoding="utf-8")
-    (repo / "bounds.json").write_text(json.dumps({
-        "editable_paths": editable,
-        "forbidden_areas": forbidden,
-        "churn_budget": {"max_files": 20, "max_lines": 1000},
-    }, indent=2), encoding="utf-8")
+
+    task_path = repo / "task.yaml"
+    task_data: dict = {}
+    if task_path.is_file():
+        try:
+            loaded = yaml.safe_load(task_path.read_text(encoding="utf-8"))
+            if isinstance(loaded, dict):
+                task_data = loaded
+        except Exception:
+            task_data = {}
+    task_data["text"] = text.strip()
+    task_data.setdefault("repo", ".")
+    task_path.write_text(json.dumps(task_data), encoding="utf-8")
+
+    bounds_path = repo / "bounds.json"
+    bounds_data: dict = {}
+    if bounds_path.is_file():
+        try:
+            loaded = json.loads(bounds_path.read_text(encoding="utf-8-sig"))
+            if isinstance(loaded, dict):
+                bounds_data = loaded
+        except Exception:
+            bounds_data = {}
+    bounds_data["editable_paths"] = editable
+    bounds_data["forbidden_areas"] = forbidden
+    bounds_data.setdefault("churn_budget", {"max_files": 20, "max_lines": 1000})
+    bounds_path.write_text(json.dumps(bounds_data, indent=2), encoding="utf-8")
 
 
 def _candidate_paths(root: Path, depth: int = 2) -> list[str]:
