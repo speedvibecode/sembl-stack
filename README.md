@@ -55,6 +55,8 @@ sembl-stack doctor                # config-aware preflight
 sembl-stack loop task.yaml        # plan → execute → gate → retry-on-BLOCK
 sembl-stack runs [<id>]           # list / inspect runs
 sembl-stack apply <id>            # apply the accepted patch (a BLOCK is never applied)
+sembl-stack gui                   # the cockpit: compose runs, watch them live, replay evidence
+sembl-stack operator              # conversational operator — commits only through typed engine tools
 ```
 
 **Presets** (`sembl-stack init --preset …`):
@@ -125,6 +127,16 @@ The guide is the default surface (see Quickstart) and a core dependency — no e
 install. It streams the real loop live under your configured profile and is
 byte-identical to a headless `sembl-stack loop`, because it drives the same adapters.
 Re-run the agent & keys step anytime with `sembl-stack --reconfigure`.
+
+## The cockpit (`sembl-stack gui`)
+
+`pip install "sembl-stack[gui]"` adds a local web cockpit over the same engine:
+compose a task, confirm its bounds, watch the staged run stream live, and replay
+any past run — verdicts, acceptance checks, and the **rendered-DOM evidence** the
+stage captured, each bound to the exact run id and diff SHA it judged. For web
+repos, the final attempt's live dev server stays up after the verdict so you can
+click around the change the gate just judged (`stage: web` in `sembl.stack.yaml`).
+Like every surface here, it is a thin renderer: nothing in the GUI judges anything.
 
 ## The full picture
 

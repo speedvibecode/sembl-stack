@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "sembl-stack"
-version = "0.2.0"
+version = "0.3.0"
 description = "A swappable, spec-driven software factory: task to bounds, an agent writes in a sandbox, the Sembl gate judges the diff, PASS merges, deploys, and a post-deploy gate confirms or rolls back. Every stage an adapter behind one typed contract."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -15,7 +15,7 @@ dependencies = [
   "pyyaml>=6.0",
   "langgraph>=0.2",   # L6 orchestrator — the real retry StateGraph engine. Core so the
                       # default install runs it, not the built-in fallback runner.
-  "sembl>=0.1.21",    # L5 gate + L2 spec engine. Core because the DEFAULT config gates
+  "sembl>=0.3.0",    # L5 gate + L2 spec engine. Core because the DEFAULT config gates
   "mcp>=1.0",         # with sembl over MCP — a bare install must run the default stack.
   "questionary>=2.0", # the guided run IS the product surface: bare `sembl-stack` must
                       # always launch the inline step-by-step guide (owner UX decision
@@ -24,14 +24,14 @@ dependencies = [
 
 [project.optional-dependencies]
 # Back-compat aliases; everything below is now a core dep except langfuse/textual.
-gate = ["sembl>=0.1.21"]
+gate = ["sembl>=0.3.0"]
 mcp = ["mcp>=1.2.0"]  # sembl-stack-mcp — the operator's typed hands (SPEC-O11, matches ../sembl's extra)
 orchestrate = ["langgraph>=0.2"]
 trace = ["langfuse>=2.0"]
 tui = ["textual>=0.50"]              # the old onboarding/wizard TUI — retired, kept installable
 gui = ["fastapi>=0.110", "uvicorn>=0.29", "pywebview>=5.0"]   # O7: the dashboard, `sembl-stack gui`
 # Everything, for the full reference factory.
-all = ["sembl>=0.1.21", "mcp>=1.0", "langgraph>=0.2", "langfuse>=2.0", "textual>=0.50",
+all = ["sembl>=0.3.0", "mcp>=1.0", "langgraph>=0.2", "langfuse>=2.0", "textual>=0.50",
        "fastapi>=0.110", "uvicorn>=0.29", "pywebview>=5.0"]
 
 [project.scripts]
