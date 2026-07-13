@@ -133,6 +133,9 @@ def test_web_check_determinism_no_external_network():
 
 
 @pytest.mark.skipif(shutil.which("npx") is None, reason="requires Node/npx on PATH")
+@pytest.mark.skipif(not (_FLAGSHIP / "node_modules").is_dir(), reason=
+    "flagship example deps not installed — `npx next dev` cancels on a bare "
+    "checkout; run `npm ci` in examples/flagship-feedback-board to enable")
 def test_web_runner_planted_break_fails_real_flagship_flow():
     """The real given/when/then flow, driven through the actual runner: Given the
     feedback board with Supabase unconfigured normally renders 3 fallback items,

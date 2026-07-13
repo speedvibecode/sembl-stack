@@ -24,9 +24,12 @@ def test_resolve_prefers_path_binary(monkeypatch):
     assert ag._resolve_agy()[:2] == ["powershell", "-NoProfile"]
 
 
+@pytest.mark.skipif(ag.os.name != "nt", reason=
+    "the LOCALAPPDATA probe is Windows-only, and it can't be faked off-Windows: "
+    "pathlib dispatches Path() on os.name, so monkeypatching it to 'nt' makes "
+    "Path() raise NotImplementedError('cannot instantiate WindowsPath') on POSIX")
 def test_resolve_probes_localappdata_when_not_on_path(monkeypatch, tmp_path):
     monkeypatch.setattr(ag.shutil, "which", lambda _: None)
-    monkeypatch.setattr(ag.os, "name", "nt")
     exe = tmp_path / "agy" / "bin" / "agy.exe"
     exe.parent.mkdir(parents=True)
     exe.write_bytes(b"MZ")
